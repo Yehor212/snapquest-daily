@@ -75,7 +75,8 @@ export const ProfileBadges = () => {
     if (!profile?.id || hasSyncedRef.current) return;
     hasSyncedRef.current = true;
     syncBadges.mutate();
-  }, [profile?.id, syncBadges]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id]);
 
   // Earned badge IDs
   const earnedBadgeIds = new Set((userBadges || []).map(ub => ub.badge_id));

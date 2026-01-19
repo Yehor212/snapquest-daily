@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Camera, Sparkles, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Camera, Sparkles, Loader2, CheckCircle, XCircle, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PhotoUploadButton, PhotoPreview, PhotoEditor } from '@/components/upload';
 import { XpBadge } from '@/components/common';
@@ -13,6 +13,7 @@ import { useDailyChallenge } from '@/hooks/useChallenges';
 import { useUploadPhoto } from '@/hooks/usePhotos';
 import { useAddXp, useUpdateStreak } from '@/hooks/useProfile';
 import { useCompleteHuntTask, useHuntWithTasks } from '@/hooks/useHunts';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 
 type Step = 'select' | 'preview' | 'edit' | 'verifying' | 'verified' | 'success';
@@ -21,6 +22,7 @@ export default function UploadPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
 
   const { data: challenge, isLoading: challengeLoading } = useDailyChallenge();
   const uploadPhotoMutation = useUploadPhoto();
@@ -198,6 +200,18 @@ export default function UploadPage() {
   };
 
   const handleUpload = async (processedImage: string) => {
+    // Check authentication before upload
+    if (!isAuthenticated || !user) {
+      toast({
+        title: 'Требуется авторизация',
+        description: 'Войдите в аккаунт, чтобы загрузить фото',
+        variant: 'destructive',
+      });
+      setStep('select');
+      setIsSubmitting(false);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -218,8 +232,20 @@ export default function UploadPage() {
         },
       });
 
+      // Check if upload actually succeeded
+      if (!uploadedPhoto || !uploadedPhoto.id) {
+        console.error('Upload failed: no photo returned');
+        toast({
+          title: 'Ошибка загрузки',
+          description: 'Не удалось сохранить фото в хранилище. Проверьте подключение.',
+          variant: 'destructive',
+        });
+        setStep('preview');
+        return;
+      }
+
       // Complete hunt task if applicable (RPC handles XP and streak atomically)
-      if (huntId && huntTaskId && uploadedPhoto?.id) {
+      if (huntId && huntTaskId && uploadedPhoto.id) {
         await completeHuntTaskMutation.mutateAsync({
           huntId,
           taskId: huntTaskId,
@@ -291,6 +317,60 @@ export default function UploadPage() {
 
   const xpReward = contextXp;
   const dayNumber = challenge?.day_number || 1;
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Show login prompt if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-lg border-b border-border">
+          <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <h1 className="font-display text-lg font-semibold">Загрузить фото</h1>
+            <div className="w-10" />
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center"
+          >
+            <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center">
+              <LogIn className="w-10 h-10 text-muted-foreground" />
+            </div>
+            <div>
+              <h2 className="font-display text-xl font-bold mb-2">
+                Войдите в аккаунт
+              </h2>
+              <p className="text-muted-foreground text-sm max-w-xs">
+                Для загрузки фото нужно авторизоваться
+              </p>
+            </div>
+            <Button
+              variant="hero"
+              size="lg"
+              className="gap-2"
+              onClick={() => navigate('/profile')}
+            >
+              <LogIn className="w-5 h-5" />
+              Войти
+            </Button>
+          </motion.div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

@@ -37,29 +37,54 @@ export async function uploadPhoto(
     xpEarned?: number;
   }
 ): Promise<Photo | null> {
-  if (!isSupabaseConfigured) return null;
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  // Generate unique filename
-  const fileExt = file.name.split('.').pop();
-  const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-  // Upload to storage
-  const { error: uploadError } = await supabase.storage
-    .from('photos')
-    .upload(fileName, file);
-
-  if (uploadError) {
-    console.error('Error uploading photo:', uploadError);
+  if (!isSupabaseConfigured) {
+    console.error('[uploadPhoto] Supabase not configured');
     return null;
   }
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    console.error('[uploadPhoto] Auth error:', authError.message);
+    return null;
+  }
+  if (!user) {
+    console.error('[uploadPhoto] User not authenticated');
+    return null;
+  }
+
+  // Generate unique filename
+  const fileExt = file.name.split('.').pop() || 'jpg';
+  const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+  console.log('[uploadPhoto] Starting upload:', { fileName, fileSize: file.size, fileType: file.type });
+
+  // Upload to storage
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('photos')
+    .upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (uploadError) {
+    console.error('[uploadPhoto] Storage error:', uploadError.message);
+    if (uploadError.message.includes('Bucket not found')) {
+      console.error('[uploadPhoto] CRITICAL: Storage bucket "photos" does not exist! Create it in Supabase Dashboard > Storage.');
+    }
+    if (uploadError.message.includes('row-level security')) {
+      console.error('[uploadPhoto] RLS policy blocking upload. Check storage policies.');
+    }
+    return null;
+  }
+
+  console.log('[uploadPhoto] Storage upload success:', uploadData?.path);
 
   // Get public URL
   const { data: { publicUrl } } = supabase.storage
     .from('photos')
     .getPublicUrl(fileName);
+
+  console.log('[uploadPhoto] Public URL:', publicUrl);
 
   // Create photo record
   const { data, error } = await supabase
@@ -79,10 +104,11 @@ export async function uploadPhoto(
     .single();
 
   if (error) {
-    console.error('Error creating photo record:', error);
+    console.error('[uploadPhoto] Database insert error:', error.message, error.code);
     return null;
   }
 
+  console.log('[uploadPhoto] Photo record created:', data.id);
   return data;
 }
 

@@ -171,6 +171,8 @@ returns void as $$
 declare
   task_xp integer;
   progress_record hunt_progress%rowtype;
+  total_tasks_count integer;
+  completed_tasks_count integer;
 begin
   -- Get task XP
   select xp_reward into task_xp
@@ -187,7 +189,8 @@ begin
 
   if progress_record.id is null then
     insert into hunt_progress (hunt_id, user_id, completed_tasks, total_xp_earned)
-    values (p_hunt_id, auth.uid(), array[p_task_id], task_xp);
+    values (p_hunt_id, auth.uid(), array[p_task_id], task_xp)
+    returning * into progress_record;
   else
     -- Check if task already completed
     if p_task_id = any(progress_record.completed_tasks) then
@@ -199,6 +202,20 @@ begin
     set
       completed_tasks = array_append(completed_tasks, p_task_id),
       total_xp_earned = total_xp_earned + task_xp
+    where id = progress_record.id
+    returning * into progress_record;
+  end if;
+
+  -- Check if all tasks are completed
+  select count(*) into total_tasks_count
+  from hunt_tasks where hunt_id = p_hunt_id;
+
+  completed_tasks_count := array_length(progress_record.completed_tasks, 1);
+
+  -- Set completed_at if all tasks are done
+  if completed_tasks_count >= total_tasks_count then
+    update hunt_progress
+    set completed_at = now()
     where id = progress_record.id;
   end if;
 

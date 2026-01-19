@@ -10,33 +10,30 @@ export const HeroSection = () => {
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) {
-      return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M+';
+      return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
     }
     if (num >= 1000) {
-      return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K+';
+      return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
     }
-    if (num > 0) {
-      return num.toString() + '+';
-    }
-    return null;
+    return num.toString();
   };
 
   const photosCount = stats?.totalPhotos || 0;
   const huntsCount = stats?.activeHunts || 0;
 
-  // Show real stats if available, otherwise show aspirational numbers
+  // Show real stats from database
   const heroStats = [
     {
-      value: photosCount > 100 ? formatNumber(photosCount) : "50K+",
-      label: "игроков"
+      value: formatNumber(photosCount),
+      label: photosCount === 1 ? "фото" : "фото загружено"
     },
     {
-      value: photosCount > 100 ? formatNumber(photosCount * 10) : "1M+",
-      label: "фото"
+      value: formatNumber(huntsCount),
+      label: huntsCount === 1 ? "охота" : "охот активно"
     },
     {
       value: "365",
-      label: "челленджей"
+      label: "челленджей в год"
     },
   ];
 
@@ -119,7 +116,7 @@ export const HeroSection = () => {
             </Button>
             <Button variant="glass" size="xl" className="w-full sm:w-auto" onClick={() => navigate('/hunts')}>
               <Users className="w-5 h-5" />
-              Как это работает
+              Фото-охота
             </Button>
           </motion.div>
 
