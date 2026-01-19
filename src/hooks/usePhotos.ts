@@ -65,6 +65,7 @@ export function useUploadPhoto() {
       options?: {
         challengeId?: string;
         eventId?: string;
+        eventChallengeId?: string;
         huntId?: string;
         huntTaskId?: string;
         filter?: string;

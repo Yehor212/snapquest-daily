@@ -149,6 +149,7 @@ export default function HuntsPage() {
                     <HuntCard
                       hunt={hunt}
                       progress={progressMap[hunt.id]}
+                      taskCount={hunt.task_count || 0}
                       onClick={() => handleHuntClick(hunt.id)}
                     />
                   </motion.div>
@@ -174,6 +175,7 @@ export default function HuntsPage() {
                     <HuntCard
                       hunt={hunt}
                       progress={progressMap[hunt.id]}
+                      taskCount={hunt.task_count || 0}
                       onClick={() => handleHuntClick(hunt.id)}
                     />
                   </motion.div>

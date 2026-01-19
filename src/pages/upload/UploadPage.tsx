@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Camera, Sparkles, Loader2, CheckCircle, XCircle } from 'lucide-react';
@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useDailyChallenge } from '@/hooks/useChallenges';
 import { useUploadPhoto } from '@/hooks/usePhotos';
 import { useAddXp } from '@/hooks/useProfile';
+import { useCompleteHuntTask, useHuntWithTasks } from '@/hooks/useHunts';
+import { supabase } from '@/lib/supabase';
 
 type Step = 'select' | 'preview' | 'edit' | 'verifying' | 'verified' | 'success';
 
@@ -23,6 +25,7 @@ export default function UploadPage() {
   const { data: challenge, isLoading: challengeLoading } = useDailyChallenge();
   const uploadPhotoMutation = useUploadPhoto();
   const addXpMutation = useAddXp();
+  const completeHuntTaskMutation = useCompleteHuntTask();
 
   // Support both challengeId and challenge query params
   const challengeId = searchParams.get('challengeId') || searchParams.get('challenge') || challenge?.id;
@@ -30,6 +33,32 @@ export default function UploadPage() {
   const eventChallengeId = searchParams.get('eventChallenge');
   const huntId = searchParams.get('huntId') || searchParams.get('hunt');
   const huntTaskId = searchParams.get('huntTask');
+
+  // Fetch hunt data if huntId is present
+  const { data: huntData } = useHuntWithTasks(huntId || undefined);
+
+  // State for dynamic XP based on context
+  const [contextXp, setContextXp] = useState<number>(50);
+
+  // Fetch XP reward based on context (event challenge or hunt task)
+  useEffect(() => {
+    const fetchContextXp = async () => {
+      if (eventChallengeId) {
+        const { data } = await supabase
+          .from('event_challenges')
+          .select('xp_reward')
+          .eq('id', eventChallengeId)
+          .single();
+        if (data) setContextXp(data.xp_reward);
+      } else if (huntTaskId && huntData?.tasks) {
+        const task = huntData.tasks.find(t => t.id === huntTaskId);
+        if (task) setContextXp(task.xp_reward);
+      } else if (challenge?.xp_reward) {
+        setContextXp(challenge.xp_reward);
+      }
+    };
+    fetchContextXp();
+  }, [eventChallengeId, huntTaskId, huntData, challenge]);
 
   const [step, setStep] = useState<Step>('select');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -156,21 +185,34 @@ export default function UploadPage() {
         },
       });
 
-      // Add XP reward
-      if (challenge?.xp_reward) {
-        await addXpMutation.mutateAsync(challenge.xp_reward);
+      // Complete hunt task if applicable (adds XP via the function)
+      if (huntId && huntTaskId) {
+        await completeHuntTaskMutation.mutateAsync({
+          huntId,
+          taskId: huntTaskId,
+          xpReward: contextXp,
+        });
+      } else {
+        // Add XP reward for daily challenges and events
+        await addXpMutation.mutateAsync(contextXp);
       }
 
       setStep('success');
 
       toast({
         title: 'Фото загружено!',
-        description: `+${challenge?.xp_reward || 50} XP`,
+        description: `+${contextXp} XP`,
       });
 
-      // Navigate to gallery after delay
+      // Navigate back based on context
       setTimeout(() => {
-        navigate('/gallery');
+        if (huntId) {
+          navigate(`/hunts/${huntId}`);
+        } else if (eventId) {
+          navigate(`/events/${eventId}`);
+        } else {
+          navigate('/gallery');
+        }
       }, 2000);
     } catch (error) {
       console.error('Error uploading photo:', error);
@@ -214,7 +256,7 @@ export default function UploadPage() {
     }
   };
 
-  const xpReward = challenge?.xp_reward || 50;
+  const xpReward = contextXp;
   const dayNumber = challenge?.day_number || 1;
 
   return (

@@ -57,14 +57,14 @@ export const ProfileBadges = () => {
       if (profile) {
         switch (b.requirement_type) {
           case 'streak':
-            progress = Math.min(100, Math.round((profile.current_streak / b.requirement_value) * 100));
+            progress = Math.min(100, Math.round((profile.streak / b.requirement_value) * 100));
             break;
           case 'photos':
             // Would need photos count from profile
             progress = 0;
             break;
           case 'xp':
-            progress = Math.min(100, Math.round((profile.total_xp / b.requirement_value) * 100));
+            progress = Math.min(100, Math.round((profile.xp / b.requirement_value) * 100));
             break;
           case 'level':
             progress = Math.min(100, Math.round((profile.level / b.requirement_value) * 100));

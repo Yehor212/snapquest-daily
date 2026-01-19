@@ -11,6 +11,7 @@ export interface Hunt {
   total_xp: number;
   is_active: boolean;
   created_at: string;
+  task_count?: number;
 }
 
 export interface HuntTask {
@@ -34,7 +35,7 @@ export interface HuntProgress {
 }
 
 /**
- * Get all active hunts
+ * Get all active hunts with task counts
  */
 export async function getActiveHunts(): Promise<Hunt[]> {
   if (!isSupabaseConfigured) return [];
@@ -50,7 +51,26 @@ export async function getActiveHunts(): Promise<Hunt[]> {
     return [];
   }
 
-  return data || [];
+  if (!data || data.length === 0) return [];
+
+  // Fetch task counts for all hunts
+  const huntIds = data.map(h => h.id);
+  const { data: tasks } = await supabase
+    .from('hunt_tasks')
+    .select('hunt_id')
+    .in('hunt_id', huntIds);
+
+  // Count tasks per hunt
+  const taskCounts: Record<string, number> = {};
+  (tasks || []).forEach(t => {
+    taskCounts[t.hunt_id] = (taskCounts[t.hunt_id] || 0) + 1;
+  });
+
+  // Add task_count to hunts
+  return data.map(hunt => ({
+    ...hunt,
+    task_count: taskCounts[hunt.id] || 0,
+  }));
 }
 
 /**
