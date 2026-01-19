@@ -14,13 +14,18 @@ export const GameModes = () => {
     return num.toString();
   };
 
+  // Calculate meaningful stats with fallbacks
+  const totalPhotos = stats?.totalPhotos || 0;
+  const activeHunts = stats?.activeHunts || 0;
+  const totalEvents = stats?.totalEvents || 0;
+
   const modes = [
     {
       icon: Calendar,
       title: "Daily Challenge",
       description: "Одно задание каждый день для всех. Выполняй и смотри, как другие интерпретируют тему",
       color: "from-primary to-primary/60",
-      stats: `${formatNumber(stats?.totalPhotos || 0)} фото загружено`,
+      stats: totalPhotos > 0 ? `${formatNumber(totalPhotos)} фото загружено` : "365 челленджей в год",
       link: "/upload",
     },
     {
@@ -28,7 +33,7 @@ export const GameModes = () => {
       title: "Фото-охота",
       description: "Список из N заданий на день или неделю. Идеально для путешествий и прогулок",
       color: "from-accent to-accent/60",
-      stats: `${stats?.activeHunts || 0} активных охот`,
+      stats: activeHunts > 0 ? `${activeHunts} активных охот` : "3 тематических охоты",
       link: "/hunts",
     },
     {
@@ -36,7 +41,7 @@ export const GameModes = () => {
       title: "Социальные челленджи",
       description: "Создавай приватные игры для друзей, свадеб, тимбилдингов и вечеринок",
       color: "from-gold to-gold/60",
-      stats: `${formatNumber(stats?.totalEvents || 0)} мероприятий`,
+      stats: totalEvents > 0 ? `${formatNumber(totalEvents)} мероприятий` : "Создай своё событие",
       link: "/events",
     },
   ];

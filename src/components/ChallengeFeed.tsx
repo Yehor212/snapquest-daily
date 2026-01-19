@@ -1,9 +1,11 @@
 import { motion } from "framer-motion";
-import { Heart, Share2, Award, Loader2, ImageIcon } from "lucide-react";
+import { Heart, Share2, Award, Loader2, ImageIcon, Camera, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { usePhotoFeed, useLikePhoto, useUnlikePhoto, useHasUserLikedPhoto } from "@/hooks/usePhotos";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "./ui/button";
 
 interface FeedItemProps {
   id: string;
@@ -152,6 +154,7 @@ function FeedItem({ id, imageUrl, likesCount, username, avatarUrl, isTop, create
 }
 
 export const ChallengeFeed = () => {
+  const navigate = useNavigate();
   const [limit, setLimit] = useState(12);
   const { data: photos, isLoading } = usePhotoFeed(limit);
   const hasMore = photos && photos.length === limit;
@@ -183,13 +186,29 @@ export const ChallengeFeed = () => {
 
         {/* Empty state */}
         {!isLoading && (!photos || photos.length === 0) && (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <ImageIcon className="w-16 h-16 text-muted-foreground mb-4" />
-            <h3 className="font-display text-xl font-bold mb-2">Пока нет фото</h3>
-            <p className="text-muted-foreground max-w-md">
-              Станьте первым, кто выполнит сегодняшний челлендж!
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center py-12 text-center max-w-md mx-auto"
+          >
+            <div className="w-20 h-20 rounded-2xl bg-secondary flex items-center justify-center mb-6">
+              <ImageIcon className="w-10 h-10 text-muted-foreground" />
+            </div>
+            <h3 className="font-display text-xl font-bold mb-2">Лента пуста</h3>
+            <p className="text-muted-foreground mb-6">
+              Станьте первым, кто выполнит сегодняшний челлендж и появится в ленте!
             </p>
-          </div>
+            <Button
+              variant="hero"
+              size="lg"
+              className="group"
+              onClick={() => navigate('/upload')}
+            >
+              <Camera className="w-5 h-5" />
+              Загрузить фото
+              <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+            </Button>
+          </motion.div>
         )}
 
         {/* Feed Grid */}
