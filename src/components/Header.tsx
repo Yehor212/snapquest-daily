@@ -79,6 +79,14 @@ export const Header = () => {
               Галерея
             </Link>
           </Button>
+          {user && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/profile" className="gap-2">
+                <User className="w-4 h-4" />
+                Профиль
+              </Link>
+            </Button>
+          )}
         </nav>
 
         {/* Stats - Desktop (only show when logged in) */}

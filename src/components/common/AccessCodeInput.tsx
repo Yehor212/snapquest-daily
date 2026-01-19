@@ -15,7 +15,7 @@ interface AccessCodeInputProps {
 export function AccessCodeInput({
   value,
   onChange,
-  length = 8,
+  length = 6,
   onComplete,
 }: AccessCodeInputProps) {
   const handleChange = (newValue: string) => {

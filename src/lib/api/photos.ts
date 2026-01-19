@@ -262,7 +262,7 @@ export async function getGlobalStats(): Promise<{
 
   const [photosResult, huntsResult, eventsResult] = await Promise.all([
     supabase.from('photos').select('*', { count: 'exact', head: true }),
-    supabase.from('hunts').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+    supabase.from('hunts').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase.from('events').select('*', { count: 'exact', head: true }),
   ]);
 

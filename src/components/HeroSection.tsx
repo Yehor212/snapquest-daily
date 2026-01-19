@@ -1,8 +1,29 @@
 import { motion } from "framer-motion";
-import { Camera, Sparkles, Users, Zap } from "lucide-react";
+import { Camera, Sparkles, Users } from "lucide-react";
 import { Button } from "./ui/button";
+import { useNavigate } from "react-router-dom";
+import { useGlobalStats } from "@/hooks/usePhotos";
 
 export const HeroSection = () => {
+  const navigate = useNavigate();
+  const { data: stats } = useGlobalStats();
+
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    }
+    return num.toString();
+  };
+
+  const heroStats = [
+    { value: formatNumber(stats?.totalPhotos || 0), label: "фото" },
+    { value: formatNumber(stats?.activeHunts || 0), label: "охот" },
+    { value: formatNumber(stats?.totalEvents || 0), label: "событий" },
+  ];
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
       {/* Animated background elements */}
@@ -76,11 +97,11 @@ export const HeroSection = () => {
             transition={{ duration: 0.6, delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16"
           >
-            <Button variant="hero" size="xl" className="w-full sm:w-auto">
+            <Button variant="hero" size="xl" className="w-full sm:w-auto" onClick={() => navigate('/upload')}>
               <Camera className="w-5 h-5" />
               Начать играть
             </Button>
-            <Button variant="glass" size="xl" className="w-full sm:w-auto">
+            <Button variant="glass" size="xl" className="w-full sm:w-auto" onClick={() => navigate('/hunts')}>
               <Users className="w-5 h-5" />
               Как это работает
             </Button>
@@ -93,11 +114,7 @@ export const HeroSection = () => {
             transition={{ duration: 0.6, delay: 0.4 }}
             className="grid grid-cols-3 gap-8 max-w-lg mx-auto"
           >
-            {[
-              { value: "50K+", label: "игроков" },
-              { value: "1M+", label: "фото" },
-              { value: "365", label: "челленджей" },
-            ].map((stat, index) => (
+            {heroStats.map((stat, index) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, scale: 0.8 }}
