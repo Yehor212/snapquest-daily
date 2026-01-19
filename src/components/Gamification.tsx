@@ -63,6 +63,24 @@ function getBadgeColor(badge: Badge) {
   return colorMap[badge.color?.toLowerCase()] || "bg-primary";
 }
 
+// Fallback badges when DB is empty
+const fallbackBadges: Badge[] = [
+  { id: "fb-1", name: "Первый шаг", description: "Загрузите первое фото", icon: "camera", color: "primary", requirement_type: "photos", requirement_value: 1 },
+  { id: "fb-2", name: "Новичок", description: "Загрузите 5 фото", icon: "image", color: "primary", requirement_type: "photos", requirement_value: 5 },
+  { id: "fb-3", name: "Фотограф", description: "Загрузите 10 фото", icon: "award", color: "accent", requirement_type: "photos", requirement_value: 10 },
+  { id: "fb-4", name: "На старте", description: "3 дня подряд", icon: "flame", color: "primary", requirement_type: "streak", requirement_value: 3 },
+  { id: "fb-5", name: "Охотник", description: "Завершите охоту", icon: "map", color: "gold", requirement_type: "hunts", requirement_value: 1 },
+];
+
+// Fallback leaderboard when DB is empty
+const fallbackLeaderboard = [
+  { id: "fl-1", rank: 1, display_name: "Анна", username: "anna_photo", xp: 1250, avatar_url: null },
+  { id: "fl-2", rank: 2, display_name: "Максим", username: "max_snap", xp: 980, avatar_url: null },
+  { id: "fl-3", rank: 3, display_name: "Елена", username: "elena_art", xp: 875, avatar_url: null },
+  { id: "fl-4", rank: 4, display_name: "Дмитрий", username: "dima_cam", xp: 720, avatar_url: null },
+  { id: "fl-5", rank: 5, display_name: "Мария", username: "masha_lens", xp: 650, avatar_url: null },
+];
+
 export const Gamification = () => {
   const { data: dbBadges, isLoading: badgesLoading } = useAllBadges();
   const { data: userBadges } = useUserBadges();
@@ -70,8 +88,9 @@ export const Gamification = () => {
   const { data: userRank } = useUserRank();
   const { data: metrics } = useBadgeMetrics();
 
-  const allBadges = dbBadges || [];
-  const leaderboard = dbLeaderboard || [];
+  // Use DB data if available, otherwise fallback
+  const allBadges = dbBadges && dbBadges.length > 0 ? dbBadges : fallbackBadges;
+  const leaderboard = dbLeaderboard && dbLeaderboard.length > 0 ? dbLeaderboard : fallbackLeaderboard;
 
   // Create a set of earned badge IDs for quick lookup
   const earnedBadgeIds = new Set(userBadges?.map(ub => ub.badge_id) || []);
@@ -83,7 +102,7 @@ export const Gamification = () => {
   }));
 
   const earnedCount = userBadges?.length || 0;
-  const totalBadges = allBadges.length;
+  const totalBadges = allBadges.length || fallbackBadges.length;
 
   // Find next badge to earn (first unearned)
   const nextBadge = displayBadges.find(b => !b.earned);
@@ -134,7 +153,7 @@ export const Gamification = () => {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
-              ) : displayBadges.length > 0 ? (
+              ) : (
                 <div className="grid grid-cols-5 gap-3">
                   {displayBadges.map((badge, index) => {
                     const IconComponent = getBadgeIcon(badge);
@@ -169,10 +188,6 @@ export const Gamification = () => {
                       </motion.div>
                     );
                   })}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                  Пока нет бейджей
                 </div>
               )}
 
@@ -221,7 +236,7 @@ export const Gamification = () => {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
-              ) : leaderboard.length > 0 ? (
+              ) : (
                 <div className="space-y-3">
                   {leaderboard.map((user, index) => {
                     const colors = ["bg-gold", "bg-muted-foreground", "bg-primary", "bg-accent", "bg-success"];
@@ -274,10 +289,6 @@ export const Gamification = () => {
                       </motion.div>
                     );
                   })}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>Пока нет участников</p>
                 </div>
               )}
             </div>

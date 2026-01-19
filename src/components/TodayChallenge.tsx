@@ -1,9 +1,23 @@
 import { motion } from "framer-motion";
 import { Clock, Camera, Flame, Trophy, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "./ui/button";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDailyChallenge, useTodayCompletions } from "@/hooks/useChallenges";
+
+// Local fallback challenges - rotate based on day of year
+const localChallenges = [
+  { id: "local-1", title: "Тени и свет", description: "Найдите интересную игру теней и света вокруг вас", xp_reward: 50 },
+  { id: "local-2", title: "Отражения", description: "Сфотографируйте интересное отражение в воде, стекле или зеркале", xp_reward: 50 },
+  { id: "local-3", title: "Симметрия", description: "Найдите симметричный объект или сцену", xp_reward: 50 },
+  { id: "local-4", title: "Минимализм", description: "Создайте фото с минимальным количеством элементов", xp_reward: 50 },
+  { id: "local-5", title: "Текстуры", description: "Сфотографируйте интересную текстуру крупным планом", xp_reward: 50 },
+  { id: "local-6", title: "Цветовой акцент", description: "Найдите яркий цветной объект на нейтральном фоне", xp_reward: 50 },
+  { id: "local-7", title: "Геометрия города", description: "Найдите интересные геометрические формы в архитектуре", xp_reward: 50 },
+  { id: "local-8", title: "Детали", description: "Сфотографируйте маленькую деталь, которую обычно не замечают", xp_reward: 50 },
+  { id: "local-9", title: "Контрасты", description: "Покажите контраст: старое и новое, большое и маленькое", xp_reward: 50 },
+  { id: "local-10", title: "Ритм и повторение", description: "Найдите повторяющиеся элементы или паттерны", xp_reward: 50 },
+];
 
 export const TodayChallenge = () => {
   const navigate = useNavigate();
@@ -42,8 +56,14 @@ export const TodayChallenge = () => {
     (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
   );
 
-  const challenge = dbChallenge;
-  const challengeDayNumber = challenge?.day_number || dayNumber;
+  // Use DB challenge if available, otherwise fallback to local
+  const challenge = useMemo(() => {
+    if (dbChallenge) return dbChallenge;
+    const index = dayNumber % localChallenges.length;
+    return localChallenges[index];
+  }, [dbChallenge, dayNumber]);
+
+  const challengeDayNumber = dbChallenge?.day_number || dayNumber;
 
   return (
     <section className="py-20 relative overflow-hidden">
@@ -94,7 +114,7 @@ export const TodayChallenge = () => {
                   <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
                   <p className="text-muted-foreground mt-4">Загрузка челленджа...</p>
                 </div>
-              ) : challenge ? (
+              ) : (
                 <>
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
                     <Flame className="w-4 h-4" />
@@ -133,7 +153,14 @@ export const TodayChallenge = () => {
                     variant="hero"
                     size="lg"
                     className="group"
-                    onClick={() => navigate(`/upload?challengeId=${challenge.id}&title=${encodeURIComponent(challenge.title)}&xp=${challenge.xp_reward}`)}
+                    onClick={() => {
+                      const isLocal = challenge.id.startsWith('local-');
+                      if (isLocal) {
+                        navigate(`/upload?challengeTitle=${encodeURIComponent(challenge.title)}&xp=${challenge.xp_reward}`);
+                      } else {
+                        navigate(`/upload?challengeId=${challenge.id}&title=${encodeURIComponent(challenge.title)}&xp=${challenge.xp_reward}`);
+                      }
+                    }}
                   >
                     <Camera className="w-5 h-5" />
                     Выполнить задание
@@ -145,10 +172,6 @@ export const TodayChallenge = () => {
                     <span className="text-foreground font-semibold">{completionsCount || 0}</span> человек уже выполнили сегодня
                   </p>
                 </>
-              ) : (
-                <div className="py-12 text-center">
-                  <p className="text-muted-foreground">Сегодняшний челлендж пока не опубликован</p>
-                </div>
               )}
             </div>
           </div>

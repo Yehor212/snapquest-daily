@@ -24,15 +24,15 @@ export const GameModes = () => {
       title: "Daily Challenge",
       description: "Одно задание каждый день для всех. Выполняй и смотри, как другие интерпретируют тему",
       color: "from-primary to-primary/60",
-      stats: totalPhotos > 0 ? `${formatNumber(totalPhotos)} фото загружено` : "Пока нет фото",
+      stats: totalPhotos > 0 ? `${formatNumber(totalPhotos)} фото загружено` : "365 челленджей в год",
       link: "/upload",
     },
     {
       icon: Map,
       title: "Фото-охота",
-      description: "Список из N заданий на день или неделю. Идеально для путешествий и прогулок",
+      description: "Список из 5-10 заданий на день или неделю. Идеально для путешествий и прогулок",
       color: "from-accent to-accent/60",
-      stats: activeHunts > 0 ? `${activeHunts} активных охот` : "Пока нет охот",
+      stats: activeHunts > 0 ? `${activeHunts} активных охот` : "3 тематические охоты",
       link: "/hunts",
     },
     {
@@ -40,7 +40,7 @@ export const GameModes = () => {
       title: "Социальные челленджи",
       description: "Создавай приватные игры для друзей, свадеб, тимбилдингов и вечеринок",
       color: "from-gold to-gold/60",
-      stats: totalEvents > 0 ? `${formatNumber(totalEvents)} мероприятий` : "Пока нет событий",
+      stats: totalEvents > 0 ? `${formatNumber(totalEvents)} мероприятий` : "Создай своё событие",
       link: "/events",
     },
   ];
