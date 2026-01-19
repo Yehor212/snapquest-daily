@@ -148,16 +148,16 @@ export const Header = () => {
                 Галерея
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate("/profile")}>
-                <User className="w-4 h-4 mr-2" />
-                Профиль
-              </DropdownMenuItem>
+              {user && (
+                <DropdownMenuItem onClick={() => navigate("/profile")}>
+                  <User className="w-4 h-4 mr-2" />
+                  Профиль
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <div className="hidden sm:flex">
-            <LoginButton />
-          </div>
+          <LoginButton />
 
           <Button variant="hero" size="sm" onClick={() => navigate("/upload")}>
             <Camera className="w-4 h-4 mr-2" />

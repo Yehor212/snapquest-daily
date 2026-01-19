@@ -10,18 +10,34 @@ export const HeroSection = () => {
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) {
-      return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+      return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M+';
     }
     if (num >= 1000) {
-      return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+      return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K+';
     }
-    return num.toString();
+    if (num > 0) {
+      return num.toString() + '+';
+    }
+    return null;
   };
 
+  // Dynamic stats - show real data or meaningful fallbacks
+  const photosCount = stats?.totalPhotos || 0;
+  const huntsCount = stats?.activeHunts || 0;
+
   const heroStats = [
-    { value: formatNumber(stats?.totalPhotos || 0), label: "фото" },
-    { value: formatNumber(stats?.activeHunts || 0), label: "охот" },
-    { value: formatNumber(stats?.totalEvents || 0), label: "событий" },
+    {
+      value: formatNumber(photosCount) || "10+",
+      label: "челленджей"
+    },
+    {
+      value: huntsCount > 0 ? `${huntsCount}` : "3",
+      label: "фото-охот"
+    },
+    {
+      value: "365",
+      label: "дней в году"
+    },
   ];
 
   return (
