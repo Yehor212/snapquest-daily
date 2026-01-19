@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Sun, Contrast, Droplets } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { PhotoFilterType, PhotoEditOptions } from '@/types';
-import { FILTER_CONFIGS } from '@/lib/imageUtils';
+import type { CropData, PhotoFilterType, PhotoEditOptions } from '@/types';
+import { FILTER_CONFIGS, getImageDimensions } from '@/lib/imageUtils';
 import { FilterSelector } from './FilterSelector';
 
 interface PhotoEditorProps {
@@ -22,6 +22,13 @@ const defaultOptions: PhotoEditOptions = {
   saturation: 100,
 };
 
+const defaultCropControls = {
+  enabled: false,
+  zoom: 100,
+  offsetX: 0,
+  offsetY: 0,
+};
+
 export function PhotoEditor({
   imageUrl,
   initialOptions,
@@ -32,6 +39,51 @@ export function PhotoEditor({
     ...defaultOptions,
     ...initialOptions,
   });
+  const [cropEnabled, setCropEnabled] = useState(defaultCropControls.enabled);
+  const [cropZoom, setCropZoom] = useState(defaultCropControls.zoom);
+  const [cropOffsetX, setCropOffsetX] = useState(defaultCropControls.offsetX);
+  const [cropOffsetY, setCropOffsetY] = useState(defaultCropControls.offsetY);
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    getImageDimensions(imageUrl)
+      .then((size) => {
+        if (isMounted) {
+          setImageSize(size);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setImageSize(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [imageUrl]);
+
+  useEffect(() => {
+    if (!imageSize || !initialOptions?.crop) return;
+
+    const minDim = Math.min(imageSize.width, imageSize.height);
+    const cropSize = Math.max(1, initialOptions.crop.width);
+    const zoom = Math.round((minDim / cropSize) * 100);
+    const maxOffsetX = (imageSize.width - cropSize) / 2;
+    const maxOffsetY = (imageSize.height - cropSize) / 2;
+    const offsetX = maxOffsetX > 0
+      ? Math.round(((initialOptions.crop.x - maxOffsetX) / maxOffsetX) * 100)
+      : 0;
+    const offsetY = maxOffsetY > 0
+      ? Math.round(((initialOptions.crop.y - maxOffsetY) / maxOffsetY) * 100)
+      : 0;
+
+    setCropEnabled(true);
+    setCropZoom(Math.max(100, Math.min(250, zoom)));
+    setCropOffsetX(Math.max(-100, Math.min(100, offsetX)));
+    setCropOffsetY(Math.max(-100, Math.min(100, offsetY)));
+  }, [imageSize, initialOptions?.crop]);
 
   const handleFilterChange = (filter: PhotoFilterType) => {
     setOptions(prev => ({ ...prev, filter }));
@@ -43,10 +95,33 @@ export function PhotoEditor({
 
   const handleReset = () => {
     setOptions(defaultOptions);
+    setCropEnabled(defaultCropControls.enabled);
+    setCropZoom(defaultCropControls.zoom);
+    setCropOffsetX(defaultCropControls.offsetX);
+    setCropOffsetY(defaultCropControls.offsetY);
   };
 
   const handleSave = () => {
-    onSave(options);
+    let crop: CropData | undefined;
+
+    if (cropEnabled && imageSize) {
+      const zoomFactor = cropZoom / 100;
+      const minDim = Math.min(imageSize.width, imageSize.height);
+      const cropSize = Math.min(minDim, Math.max(1, minDim / zoomFactor));
+      const maxOffsetX = (imageSize.width - cropSize) / 2;
+      const maxOffsetY = (imageSize.height - cropSize) / 2;
+      const x = maxOffsetX + maxOffsetX * (cropOffsetX / 100);
+      const y = maxOffsetY + maxOffsetY * (cropOffsetY / 100);
+
+      crop = {
+        x: Math.max(0, Math.min(imageSize.width - cropSize, Math.round(x))),
+        y: Math.max(0, Math.min(imageSize.height - cropSize, Math.round(y))),
+        width: Math.round(cropSize),
+        height: Math.round(cropSize),
+      };
+    }
+
+    onSave({ ...options, crop });
   };
 
   // Комбинированный CSS фильтр (фильтр + настройки)
@@ -77,8 +152,9 @@ export function PhotoEditor({
       {/* Editor Controls */}
       <div className="bg-card border-t border-border p-4 space-y-4">
         <Tabs defaultValue="filters" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="filters">Фильтры</TabsTrigger>
+            <TabsTrigger value="crop">Обрезать</TabsTrigger>
             <TabsTrigger value="adjust">Настройки</TabsTrigger>
           </TabsList>
 
@@ -88,6 +164,94 @@ export function PhotoEditor({
               selectedFilter={options.filter}
               onFilterSelect={handleFilterChange}
             />
+          </TabsContent>
+
+          <TabsContent value="crop" className="mt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Обрезка</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (cropEnabled) {
+                    setCropEnabled(false);
+                    setCropZoom(defaultCropControls.zoom);
+                    setCropOffsetX(defaultCropControls.offsetX);
+                    setCropOffsetY(defaultCropControls.offsetY);
+                  } else {
+                    setCropEnabled(true);
+                  }
+                }}
+              >
+                {cropEnabled ? 'Сбросить' : 'Включить'}
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-center">
+              <div className="relative w-full max-w-xs aspect-square rounded-2xl overflow-hidden border border-border bg-secondary">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage: `url(${imageUrl})`,
+                    backgroundPosition: `${50 + cropOffsetX / 2}% ${50 + cropOffsetY / 2}%`,
+                    backgroundSize: cropEnabled ? `${cropZoom}%` : 'contain',
+                    backgroundRepeat: 'no-repeat',
+                    opacity: cropEnabled ? 1 : 0.8,
+                  }}
+                />
+                {!cropEnabled && (
+                  <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                    Обрезка выключена
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {cropEnabled && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Масштаб</span>
+                    <span className="text-sm text-muted-foreground">{cropZoom}%</span>
+                  </div>
+                  <Slider
+                    value={[cropZoom]}
+                    min={100}
+                    max={250}
+                    step={1}
+                    onValueChange={(v) => setCropZoom(v[0])}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Смещение по X</span>
+                    <span className="text-sm text-muted-foreground">{cropOffsetX}%</span>
+                  </div>
+                  <Slider
+                    value={[cropOffsetX]}
+                    min={-100}
+                    max={100}
+                    step={1}
+                    onValueChange={(v) => setCropOffsetX(v[0])}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Смещение по Y</span>
+                    <span className="text-sm text-muted-foreground">{cropOffsetY}%</span>
+                  </div>
+                  <Slider
+                    value={[cropOffsetY]}
+                    min={-100}
+                    max={100}
+                    step={1}
+                    onValueChange={(v) => setCropOffsetY(v[0])}
+                  />
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="adjust" className="mt-4 space-y-6">

@@ -1,23 +1,9 @@
 import { motion } from "framer-motion";
 import { Clock, Camera, Flame, Trophy, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "./ui/button";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDailyChallenge, useTodayCompletions } from "@/hooks/useChallenges";
-
-// Local fallback challenges when database is empty - rotate based on day of year
-const localDailyChallenges = [
-  { id: "local-1", title: "Тени и свет", description: "Найдите интересную игру теней и света вокруг вас", xp_reward: 50 },
-  { id: "local-2", title: "Отражения", description: "Сфотографируйте интересное отражение в воде, стекле или зеркале", xp_reward: 50 },
-  { id: "local-3", title: "Минимализм", description: "Создайте минималистичное фото с минимумом деталей", xp_reward: 40 },
-  { id: "local-4", title: "Красный цвет", description: "Найдите и сфотографируйте что-то красного цвета", xp_reward: 30 },
-  { id: "local-5", title: "Симметрия", description: "Найдите симметричную композицию в архитектуре или природе", xp_reward: 50 },
-  { id: "local-6", title: "Текстуры", description: "Сфотографируйте интересную текстуру вблизи", xp_reward: 40 },
-  { id: "local-7", title: "Синий час", description: "Сделайте фото в сумерках, когда небо синее", xp_reward: 60 },
-  { id: "local-8", title: "Контраст", description: "Найдите контраст: старое/новое, большое/маленькое, светлое/тёмное", xp_reward: 50 },
-  { id: "local-9", title: "Ваш завтрак", description: "Красиво сфотографируйте свой завтрак или кофе", xp_reward: 30 },
-  { id: "local-10", title: "Геометрия города", description: "Найдите геометрические формы в городской среде", xp_reward: 50 },
-];
 
 export const TodayChallenge = () => {
   const navigate = useNavigate();
@@ -56,13 +42,8 @@ export const TodayChallenge = () => {
     (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
   );
 
-  // Use DB challenge if available, otherwise use local fallback
-  const challenge = useMemo(() => {
-    if (dbChallenge) return dbChallenge;
-    // Rotate through local challenges based on day of year
-    const index = dayNumber % localDailyChallenges.length;
-    return localDailyChallenges[index];
-  }, [dbChallenge, dayNumber]);
+  const challenge = dbChallenge;
+  const challengeDayNumber = challenge?.day_number || dayNumber;
 
   return (
     <section className="py-20 relative overflow-hidden">
@@ -113,11 +94,11 @@ export const TodayChallenge = () => {
                   <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
                   <p className="text-muted-foreground mt-4">Загрузка челленджа...</p>
                 </div>
-              ) : (
+              ) : challenge ? (
                 <>
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
                     <Flame className="w-4 h-4" />
-                    День #{dayNumber}
+                    День #{challengeDayNumber}
                   </div>
 
                   <h3 className="font-display text-2xl md:text-4xl font-bold mb-4">
@@ -164,6 +145,10 @@ export const TodayChallenge = () => {
                     <span className="text-foreground font-semibold">{completionsCount || 0}</span> человек уже выполнили сегодня
                   </p>
                 </>
+              ) : (
+                <div className="py-12 text-center">
+                  <p className="text-muted-foreground">Сегодняшний челлендж пока не опубликован</p>
+                </div>
               )}
             </div>
           </div>

@@ -10,6 +10,7 @@ import {
   getGlobalStats,
   Photo,
 } from '@/lib/api/photos';
+import { syncUserBadges } from '@/lib/api/profiles';
 
 export const photoKeys = {
   all: ['photos'] as const,
@@ -78,6 +79,7 @@ export function useUploadPhoto() {
       queryClient.invalidateQueries({ queryKey: photoKeys.all });
       // Invalidate profile to update stats
       queryClient.invalidateQueries({ queryKey: ['profile'] });
+      void syncUserBadges();
     },
   });
 }

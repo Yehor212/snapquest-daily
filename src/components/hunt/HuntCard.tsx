@@ -17,8 +17,14 @@ export function HuntCard({ hunt, progress, taskCount = 0, onClick }: HuntCardPro
   const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
   const isCompleted = progress?.completed_at !== null && progress?.completed_at !== undefined;
 
-  // Default cover image if not provided
-  const coverImage = hunt.cover_image || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=400&fit=crop';
+  const themeGradients: Record<HuntTheme, string> = {
+    city: 'from-slate-700/60 to-slate-900/60',
+    nature: 'from-emerald-500/50 to-teal-900/60',
+    home: 'from-amber-400/50 to-orange-800/60',
+    travel: 'from-sky-500/50 to-indigo-900/60',
+    seasonal: 'from-fuchsia-500/50 to-purple-900/60',
+  };
+  const gradientClass = themeGradients[hunt.theme as HuntTheme] || 'from-primary/20 to-accent/20';
 
   return (
     <motion.div
@@ -29,11 +35,15 @@ export function HuntCard({ hunt, progress, taskCount = 0, onClick }: HuntCardPro
     >
       {/* Cover Image */}
       <div className="relative h-32 overflow-hidden">
-        <img
-          src={coverImage}
-          alt={hunt.title}
-          className="w-full h-full object-cover transition-transform group-hover:scale-105"
-        />
+        {hunt.cover_image ? (
+          <img
+            src={hunt.cover_image}
+            alt={hunt.title}
+            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+          />
+        ) : (
+          <div className={`w-full h-full bg-gradient-to-br ${gradientClass}`} />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
 
         {/* Badges */}

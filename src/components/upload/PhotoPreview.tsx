@@ -1,12 +1,13 @@
 import { motion } from 'framer-motion';
 import { X, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { PhotoFilterType } from '@/types';
+import type { PhotoEditOptions, PhotoFilterType } from '@/types';
 import { FILTER_CONFIGS } from '@/lib/imageUtils';
 
 interface PhotoPreviewProps {
   imageUrl: string;
   filter?: PhotoFilterType;
+  adjustments?: Pick<PhotoEditOptions, 'brightness' | 'contrast' | 'saturation'>;
   onRemove?: () => void;
   onReset?: () => void;
   showControls?: boolean;
@@ -15,10 +16,20 @@ interface PhotoPreviewProps {
 export function PhotoPreview({
   imageUrl,
   filter = 'none',
+  adjustments,
   onRemove,
   onReset,
   showControls = true,
 }: PhotoPreviewProps) {
+  const brightness = adjustments?.brightness ?? 100;
+  const contrast = adjustments?.contrast ?? 100;
+  const saturation = adjustments?.saturation ?? 100;
+  const filterConfig = FILTER_CONFIGS[filter];
+  const adjustmentFilter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
+  const combinedFilter = filterConfig !== 'none'
+    ? `${filterConfig} ${adjustmentFilter}`
+    : adjustmentFilter;
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -29,7 +40,7 @@ export function PhotoPreview({
         src={imageUrl}
         alt="Preview"
         className="w-full h-full object-cover"
-        style={{ filter: FILTER_CONFIGS[filter] }}
+        style={{ filter: combinedFilter }}
       />
 
       {showControls && (

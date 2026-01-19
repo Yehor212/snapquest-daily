@@ -21,17 +21,16 @@ export const HeroSection = () => {
     return null;
   };
 
-  // Dynamic stats - show real data or meaningful fallbacks
   const photosCount = stats?.totalPhotos || 0;
   const huntsCount = stats?.activeHunts || 0;
 
   const heroStats = [
     {
-      value: formatNumber(photosCount) || "10+",
+      value: formatNumber(photosCount) || "0",
       label: "челленджей"
     },
     {
-      value: huntsCount > 0 ? `${huntsCount}` : "3",
+      value: huntsCount > 0 ? `${huntsCount}` : "0",
       label: "фото-охот"
     },
     {

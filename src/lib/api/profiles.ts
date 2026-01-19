@@ -205,6 +205,19 @@ export interface WeeklyActivity {
   xp: number;
 }
 
+export interface UserBadgeMetrics {
+  photosCount: number;
+  streak: number;
+  xp: number;
+  level: number;
+  likesReceived: number;
+  huntsCompleted: number;
+  eventsCreated: number;
+  eventsJoined: number;
+  hasEarlyPhoto: boolean;
+  hasLatePhoto: boolean;
+}
+
 /**
  * Get weekly activity for current user
  */
@@ -499,4 +512,165 @@ export async function getUserAchievements(): Promise<UserAchievements | null> {
     favoriteTheme,
     favoriteThemeCount,
   };
+}
+
+/**
+ * Get metrics used for badge progress and awarding
+ */
+export async function getUserBadgeMetrics(): Promise<UserBadgeMetrics | null> {
+  if (!isSupabaseConfigured) return null;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  try {
+    const [
+      profileResult,
+      photosResult,
+      huntsResult,
+      eventsCreatedResult,
+      eventsJoinedResult,
+    ] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('xp, level, streak')
+        .eq('id', user.id)
+        .single(),
+      supabase
+        .from('photos')
+        .select('likes_count, created_at')
+        .eq('user_id', user.id),
+      supabase
+        .from('hunt_progress')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .not('completed_at', 'is', null),
+      supabase
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('creator_id', user.id),
+      supabase
+        .from('event_participants')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id),
+    ]);
+
+    const photos = photosResult.data || [];
+    const photosCount = photos.length;
+    const likesReceived = photos.reduce((sum, photo) => sum + (photo.likes_count || 0), 0);
+    const hasEarlyPhoto = photos.some((photo) => {
+      const hour = new Date(photo.created_at).getHours();
+      return hour >= 3 && hour < 6;
+    });
+    const hasLatePhoto = photos.some((photo) => {
+      const hour = new Date(photo.created_at).getHours();
+      return hour >= 0 && hour < 3;
+    });
+
+    return {
+      photosCount,
+      streak: profileResult.data?.streak || 0,
+      xp: profileResult.data?.xp || 0,
+      level: profileResult.data?.level || 1,
+      likesReceived,
+      huntsCompleted: huntsResult.count || 0,
+      eventsCreated: eventsCreatedResult.count || 0,
+      eventsJoined: eventsJoinedResult.count || 0,
+      hasEarlyPhoto,
+      hasLatePhoto,
+    };
+  } catch (error) {
+    console.error('Error fetching badge metrics:', error);
+    return null;
+  }
+}
+
+/**
+ * Get current progress value for a badge requirement
+ */
+export function getBadgeProgressValue(badge: Badge, metrics: UserBadgeMetrics): number {
+  switch (badge.requirement_type) {
+    case 'streak':
+      return metrics.streak;
+    case 'photos':
+      return metrics.photosCount;
+    case 'xp':
+      return metrics.xp;
+    case 'level':
+      return metrics.level;
+    case 'likes_received':
+      return metrics.likesReceived;
+    case 'hunts':
+      return metrics.huntsCompleted;
+    case 'events_created':
+      return metrics.eventsCreated;
+    case 'events_joined':
+      return metrics.eventsJoined;
+    case 'special': {
+      const name = badge.name.toLowerCase();
+      if (name.includes('пташка')) return metrics.hasEarlyPhoto ? 1 : 0;
+      if (name.includes('сова')) return metrics.hasLatePhoto ? 1 : 0;
+      return 0;
+    }
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Award new badges based on current metrics
+ */
+export async function syncUserBadges(): Promise<number> {
+  if (!isSupabaseConfigured) return 0;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  const metrics = await getUserBadgeMetrics();
+  if (!metrics) return 0;
+
+  const { data: allBadges, error: badgesError } = await supabase
+    .from('badges')
+    .select('*');
+
+  if (badgesError || !allBadges) {
+    console.error('Error fetching badges for sync:', badgesError);
+    return 0;
+  }
+
+  const { data: earnedBadges, error: earnedError } = await supabase
+    .from('user_badges')
+    .select('badge_id')
+    .eq('user_id', user.id);
+
+  if (earnedError) {
+    console.error('Error fetching user badges for sync:', earnedError);
+    return 0;
+  }
+
+  const earnedSet = new Set((earnedBadges || []).map((b) => b.badge_id));
+  const toInsert = allBadges
+    .filter((badge) => !earnedSet.has(badge.id))
+    .filter((badge) => {
+      const requirement = badge.requirement_value || 1;
+      const progress = getBadgeProgressValue(badge, metrics);
+      return progress >= requirement;
+    })
+    .map((badge) => ({
+      user_id: user.id,
+      badge_id: badge.id,
+    }));
+
+  if (toInsert.length === 0) return 0;
+
+  const { error: insertError } = await supabase
+    .from('user_badges')
+    .insert(toInsert);
+
+  if (insertError) {
+    console.error('Error inserting earned badges:', insertError);
+    return 0;
+  }
+
+  return toInsert.length;
 }

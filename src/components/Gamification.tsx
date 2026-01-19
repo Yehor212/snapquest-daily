@@ -1,8 +1,28 @@
 import { motion } from "framer-motion";
-import { Flame, Trophy, Star, Target, Zap, Crown, Camera, Award, Loader2 } from "lucide-react";
-import { useAllBadges, useUserBadges, useLeaderboard, useUserRank, useCurrentProfile } from "@/hooks/useProfile";
+import {
+  Flame,
+  Trophy,
+  Star,
+  Target,
+  Zap,
+  Crown,
+  Camera,
+  Award,
+  Loader2,
+  Image as ImageIcon,
+  Medal,
+  Gem,
+  Map,
+  Compass,
+  Globe,
+  Users,
+  PartyPopper,
+  Sunrise,
+  Moon,
+} from "lucide-react";
+import { useAllBadges, useUserBadges, useLeaderboard, useUserRank, useBadgeMetrics } from "@/hooks/useProfile";
+import { getBadgeProgressValue } from "@/lib/api/profiles";
 import type { Badge } from "@/lib/api/profiles";
-import { useMemo } from "react";
 
 // Icon mapping for badge icons from database
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -14,6 +34,16 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   trophy: Trophy,
   camera: Camera,
   award: Award,
+  image: ImageIcon,
+  medal: Medal,
+  gem: Gem,
+  map: Map,
+  compass: Compass,
+  globe: Globe,
+  users: Users,
+  "party-popper": PartyPopper,
+  sunrise: Sunrise,
+  moon: Moon,
 };
 
 // Color mapping for badge colors from database
@@ -24,24 +54,6 @@ const colorMap: Record<string, string> = {
   success: "bg-success",
   destructive: "bg-destructive",
 };
-
-// Local fallback badges when database is empty
-const localBadges: Badge[] = [
-  { id: "badge-1", name: "Первый шаг", description: "Загрузите первое фото", icon: "camera", color: "primary", requirement_type: "photos", requirement_value: 1 },
-  { id: "badge-2", name: "3 дня подряд", description: "Выполняйте челленджи 3 дня подряд", icon: "flame", color: "primary", requirement_type: "streak", requirement_value: 3 },
-  { id: "badge-3", name: "Неделя стрика", description: "7 дней челленджей подряд", icon: "zap", color: "gold", requirement_type: "streak", requirement_value: 7 },
-  { id: "badge-4", name: "Фотограф", description: "Загрузите 10 фото", icon: "star", color: "accent", requirement_type: "photos", requirement_value: 10 },
-  { id: "badge-5", name: "Мастер", description: "Достигните 100 XP", icon: "crown", color: "gold", requirement_type: "xp", requirement_value: 100 },
-];
-
-// Local fallback leaderboard when database is empty
-const localLeaderboard = [
-  { id: "user-1", rank: 1, display_name: "Анна", username: "anna_photo", xp: 1250, avatar_url: null },
-  { id: "user-2", rank: 2, display_name: "Максим", username: "max_shots", xp: 980, avatar_url: null },
-  { id: "user-3", rank: 3, display_name: "Елена", username: "elena_art", xp: 875, avatar_url: null },
-  { id: "user-4", rank: 4, display_name: "Дмитрий", username: "dima_lens", xp: 720, avatar_url: null },
-  { id: "user-5", rank: 5, display_name: "Ольга", username: "olga_snap", xp: 650, avatar_url: null },
-];
 
 function getBadgeIcon(badge: Badge) {
   return iconMap[badge.icon?.toLowerCase()] || Award;
@@ -56,16 +68,10 @@ export const Gamification = () => {
   const { data: userBadges } = useUserBadges();
   const { data: dbLeaderboard, isLoading: leaderboardLoading } = useLeaderboard(5);
   const { data: userRank } = useUserRank();
-  const { data: profile } = useCurrentProfile();
+  const { data: metrics } = useBadgeMetrics();
 
-  // Use DB data if available, otherwise use local fallbacks
-  const allBadges = useMemo(() => {
-    return dbBadges && dbBadges.length > 0 ? dbBadges : localBadges;
-  }, [dbBadges]);
-
-  const leaderboard = useMemo(() => {
-    return dbLeaderboard && dbLeaderboard.length > 0 ? dbLeaderboard : localLeaderboard;
-  }, [dbLeaderboard]);
+  const allBadges = dbBadges || [];
+  const leaderboard = dbLeaderboard || [];
 
   // Create a set of earned badge IDs for quick lookup
   const earnedBadgeIds = new Set(userBadges?.map(ub => ub.badge_id) || []);
@@ -81,6 +87,11 @@ export const Gamification = () => {
 
   // Find next badge to earn (first unearned)
   const nextBadge = displayBadges.find(b => !b.earned);
+  const nextProgressValue = nextBadge && metrics ? getBadgeProgressValue(nextBadge, metrics) : 0;
+  const nextRequirement = nextBadge?.requirement_value || 1;
+  const nextProgressPercent = nextBadge
+    ? Math.min(100, Math.round((nextProgressValue / nextRequirement) * 100))
+    : 0;
 
   return (
     <section className="py-20 bg-gradient-to-b from-background via-secondary/20 to-background">
@@ -123,7 +134,7 @@ export const Gamification = () => {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
-              ) : (
+              ) : displayBadges.length > 0 ? (
                 <div className="grid grid-cols-5 gap-3">
                   {displayBadges.map((badge, index) => {
                     const IconComponent = getBadgeIcon(badge);
@@ -159,6 +170,10 @@ export const Gamification = () => {
                     );
                   })}
                 </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  Пока нет бейджей
+                </div>
               )}
 
               {/* Progress to next badge */}
@@ -166,12 +181,12 @@ export const Gamification = () => {
                 <div className="mt-6 pt-4 border-t border-border">
                   <div className="flex items-center justify-between text-sm mb-2">
                     <span className="text-muted-foreground">Следующий: {nextBadge.name}</span>
-                    <span className="font-semibold">{nextBadge.requirement_value || 0} {nextBadge.requirement_type === 'streak' ? 'дней' : ''}</span>
+                    <span className="font-semibold">{nextProgressValue}/{nextRequirement}</span>
                   </div>
                   <div className="h-2 bg-secondary rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
-                      whileInView={{ width: `${Math.min(100, ((profile?.streak || 0) / (nextBadge.requirement_value || 1)) * 100)}%` }}
+                      whileInView={{ width: `${nextProgressPercent}%` }}
                       viewport={{ once: true }}
                       transition={{ duration: 1, delay: 0.5 }}
                       className="h-full gradient-primary rounded-full"
@@ -206,7 +221,7 @@ export const Gamification = () => {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
-              ) : (
+              ) : leaderboard.length > 0 ? (
                 <div className="space-y-3">
                   {leaderboard.map((user, index) => {
                     const colors = ["bg-gold", "bg-muted-foreground", "bg-primary", "bg-accent", "bg-success"];
@@ -259,6 +274,10 @@ export const Gamification = () => {
                       </motion.div>
                     );
                   })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Пока нет участников</p>
                 </div>
               )}
             </div>

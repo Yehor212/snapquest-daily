@@ -9,6 +9,7 @@ import {
   Hunt,
   HuntProgress,
 } from '@/lib/api/hunts';
+import { syncUserBadges } from '@/lib/api/profiles';
 
 export const huntKeys = {
   all: ['hunts'] as const,
@@ -97,6 +98,7 @@ export function useCompleteHuntTask() {
         queryClient.invalidateQueries({ queryKey: huntKeys.userProgress() });
         // Also invalidate profile to update XP (RPC adds XP)
         queryClient.invalidateQueries({ queryKey: ['profile'] });
+        void syncUserBadges();
       }
     },
   });

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { PhotoUploadButton, PhotoPreview, PhotoEditor } from '@/components/upload';
 import { XpBadge } from '@/components/common';
 import type { PhotoEditOptions } from '@/types';
-import { applyFilter, applyAdjustments, base64ToFile } from '@/lib/imageUtils';
+import { applyFilter, applyAdjustments, base64ToFile, cropImage } from '@/lib/imageUtils';
 import { verifyImage, VerificationResult } from '@/lib/imageVerification';
 import { useToast } from '@/hooks/use-toast';
 import { useDailyChallenge } from '@/hooks/useChallenges';
@@ -92,6 +92,33 @@ export default function UploadPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
 
+  const applyEdits = async (imageData: string, options: PhotoEditOptions) => {
+    let processed = imageData;
+
+    if (options.crop) {
+      processed = await cropImage(processed, options.crop);
+    }
+
+    if (
+      options.brightness !== 100 ||
+      options.contrast !== 100 ||
+      options.saturation !== 100
+    ) {
+      processed = await applyAdjustments(
+        processed,
+        options.brightness,
+        options.contrast,
+        options.saturation
+      );
+    }
+
+    if (options.filter !== 'none') {
+      processed = await applyFilter(processed, options.filter);
+    }
+
+    return processed;
+  };
+
   const handlePhotoSelected = (imageData: string) => {
     setSelectedImage(imageData);
     setStep('preview');
@@ -116,25 +143,8 @@ export default function UploadPage() {
     setStep('verifying');
 
     try {
-      // Apply filters and adjustments to get final image
-      let processedImage = selectedImage;
-
-      if (
-        editOptions.brightness !== 100 ||
-        editOptions.contrast !== 100 ||
-        editOptions.saturation !== 100
-      ) {
-        processedImage = await applyAdjustments(
-          processedImage,
-          editOptions.brightness,
-          editOptions.contrast,
-          editOptions.saturation
-        );
-      }
-
-      if (editOptions.filter !== 'none') {
-        processedImage = await applyFilter(processedImage, editOptions.filter);
-      }
+      // Apply crop/adjustments/filters to get final image
+      const processedImage = await applyEdits(selectedImage, editOptions);
 
       // Convert to file for verification
       const fileForVerification = await base64ToFile(processedImage, 'photo.jpg');
@@ -153,7 +163,7 @@ export default function UploadPage() {
       const verificationDescription = contextDescription || challenge?.description;
       if (verificationTitle) {
         // Get HF API token from environment
-        const hfToken = import.meta.env.VITE_HUGGINGFACE_API_KEY;
+        const hfToken = import.meta.env.VITE_HUGGINGFACE_API_KEY || import.meta.env.VITE_HF_API_KEY;
         result = await verifyImage(
           fileForVerification,
           verificationTitle,
@@ -182,10 +192,7 @@ export default function UploadPage() {
       setStep('verified');
 
       // Proceed with upload
-      let processedImage = selectedImage;
-      if (editOptions.filter !== 'none') {
-        processedImage = await applyFilter(processedImage, editOptions.filter);
-      }
+      const processedImage = await applyEdits(selectedImage, editOptions);
       await handleUpload(processedImage);
     }
   };
@@ -265,10 +272,7 @@ export default function UploadPage() {
   const handleForceUpload = async () => {
     if (!selectedImage) return;
 
-    let processedImage = selectedImage;
-    if (editOptions.filter !== 'none') {
-      processedImage = await applyFilter(processedImage, editOptions.filter);
-    }
+    const processedImage = await applyEdits(selectedImage, editOptions);
     await handleUpload(processedImage);
   };
 
@@ -379,6 +383,11 @@ export default function UploadPage() {
             <PhotoPreview
               imageUrl={selectedImage}
               filter={editOptions.filter}
+              adjustments={{
+                brightness: editOptions.brightness,
+                contrast: editOptions.contrast,
+                saturation: editOptions.saturation,
+              }}
               onRemove={() => {
                 setSelectedImage(null);
                 setStep('select');

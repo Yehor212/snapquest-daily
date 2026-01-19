@@ -8,6 +8,7 @@ import {
   getEventParticipantsCount,
   Event,
 } from '@/lib/api/events';
+import { syncUserBadges } from '@/lib/api/profiles';
 
 export const eventKeys = {
   all: ['events'] as const,
@@ -71,6 +72,7 @@ export function useCreateEvent() {
     }) => createEvent(name, eventType, description, challenges),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: eventKeys.user() });
+      void syncUserBadges();
     },
   });
 }
@@ -87,6 +89,7 @@ export function useJoinEvent() {
       if (data) {
         queryClient.invalidateQueries({ queryKey: eventKeys.user() });
         queryClient.invalidateQueries({ queryKey: eventKeys.detail(data.id) });
+        void syncUserBadges();
       }
     },
   });

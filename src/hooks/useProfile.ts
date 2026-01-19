@@ -8,6 +8,8 @@ import {
   getWeeklyActivity,
   getUserBadges,
   getAllBadges,
+  getUserBadgeMetrics,
+  syncUserBadges,
   getUserPhotosWithChallenges,
   getUserAchievements,
   getLeaderboard,
@@ -22,6 +24,7 @@ export const profileKeys = {
   weeklyActivity: () => [...profileKeys.all, 'weeklyActivity'] as const,
   badges: () => [...profileKeys.all, 'badges'] as const,
   allBadges: () => [...profileKeys.all, 'allBadges'] as const,
+  badgeMetrics: () => [...profileKeys.all, 'badgeMetrics'] as const,
   photosWithChallenges: () => [...profileKeys.all, 'photosWithChallenges'] as const,
   achievements: () => [...profileKeys.all, 'achievements'] as const,
   leaderboard: () => [...profileKeys.all, 'leaderboard'] as const,
@@ -132,6 +135,32 @@ export function useAllBadges() {
     queryKey: profileKeys.allBadges(),
     queryFn: getAllBadges,
     staleTime: 30 * 60 * 1000, // 30 minutes - badges don't change often
+  });
+}
+
+/**
+ * Hook to get badge metrics for progress
+ */
+export function useBadgeMetrics() {
+  return useQuery({
+    queryKey: profileKeys.badgeMetrics(),
+    queryFn: getUserBadgeMetrics,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+/**
+ * Hook to sync badges (award new ones)
+ */
+export function useSyncBadges() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: syncUserBadges,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: profileKeys.badges() });
+      queryClient.invalidateQueries({ queryKey: profileKeys.all });
+    },
   });
 }
 

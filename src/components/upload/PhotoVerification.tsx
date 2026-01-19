@@ -30,10 +30,12 @@ export function PhotoVerification({
     setResult(null);
 
     try {
+      const hfToken = import.meta.env.VITE_HUGGINGFACE_API_KEY || import.meta.env.VITE_HF_API_KEY;
       const verificationResult = await verifyImage(
         imageFile,
         challengeTitle,
-        challengeDescription
+        challengeDescription,
+        hfToken || undefined
       );
 
       setResult(verificationResult);

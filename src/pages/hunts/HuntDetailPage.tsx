@@ -60,6 +60,15 @@ export default function HuntDetailPage() {
   const isStarted = progress !== null;
   const isCompleted = progress?.completed_at !== null && progress?.completed_at !== undefined;
 
+  const themeGradients: Record<string, string> = {
+    city: 'from-slate-700/60 to-slate-900/60',
+    nature: 'from-emerald-500/50 to-teal-900/60',
+    home: 'from-amber-400/50 to-orange-800/60',
+    travel: 'from-sky-500/50 to-indigo-900/60',
+    seasonal: 'from-fuchsia-500/50 to-purple-900/60',
+  };
+  const gradientClass = themeGradients[hunt.theme] || 'from-primary/20 to-accent/20';
+
   // Map tasks to UI format
   const mappedTasks = tasks.map(t => ({
     id: t.id,
@@ -87,7 +96,6 @@ export default function HuntDetailPage() {
     id: hunt.id,
     title: hunt.title,
     description: hunt.description || '',
-    coverImage: hunt.cover_image || 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800',
     theme: hunt.theme,
     difficulty: hunt.difficulty,
     duration: hunt.duration,
@@ -119,11 +127,15 @@ export default function HuntDetailPage() {
           animate={{ opacity: 1, y: 0 }}
           className="relative h-48 rounded-2xl overflow-hidden"
         >
-          <img
-            src={mappedHunt.coverImage}
-            alt={hunt.title}
-            className="w-full h-full object-cover"
-          />
+          {hunt.cover_image ? (
+            <img
+              src={hunt.cover_image}
+              alt={hunt.title}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className={`w-full h-full bg-gradient-to-br ${gradientClass}`} />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
 
           {/* Info overlay */}

@@ -1,6 +1,29 @@
+import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Trophy, Flame, Star, Target, Zap, Crown, Camera, Heart, Award, Loader2 } from "lucide-react";
-import { useUserBadges, useAllBadges, useCurrentProfile } from "@/hooks/useProfile";
+import {
+  Trophy,
+  Flame,
+  Star,
+  Target,
+  Zap,
+  Crown,
+  Camera,
+  Heart,
+  Award,
+  Loader2,
+  Image as ImageIcon,
+  Medal,
+  Gem,
+  Map,
+  Compass,
+  Globe,
+  Users,
+  PartyPopper,
+  Sunrise,
+  Moon,
+} from "lucide-react";
+import { useUserBadges, useAllBadges, useBadgeMetrics, useCurrentProfile, useSyncBadges } from "@/hooks/useProfile";
+import { getBadgeProgressValue } from "@/lib/api/profiles";
 import type { LucideIcon } from "lucide-react";
 
 // Map badge icons by name
@@ -14,6 +37,16 @@ const iconMap: Record<string, LucideIcon> = {
   heart: Heart,
   award: Award,
   trophy: Trophy,
+  image: ImageIcon,
+  medal: Medal,
+  gem: Gem,
+  map: Map,
+  compass: Compass,
+  globe: Globe,
+  users: Users,
+  "party-popper": PartyPopper,
+  sunrise: Sunrise,
+  moon: Moon,
 };
 
 // Map badge colors
@@ -31,9 +64,18 @@ const colorMap: Record<string, string> = {
 export const ProfileBadges = () => {
   const { data: userBadges, isLoading: badgesLoading } = useUserBadges();
   const { data: allBadges, isLoading: allBadgesLoading } = useAllBadges();
+  const { data: metrics } = useBadgeMetrics();
   const { data: profile } = useCurrentProfile();
+  const syncBadges = useSyncBadges();
+  const hasSyncedRef = useRef(false);
 
   const isLoading = badgesLoading || allBadgesLoading;
+
+  useEffect(() => {
+    if (!profile?.id || hasSyncedRef.current) return;
+    hasSyncedRef.current = true;
+    syncBadges.mutate();
+  }, [profile?.id, syncBadges]);
 
   // Earned badge IDs
   const earnedBadgeIds = new Set((userBadges || []).map(ub => ub.badge_id));
@@ -41,10 +83,10 @@ export const ProfileBadges = () => {
   // Process earned badges
   const earnedBadges = (userBadges || []).map(ub => ({
     id: ub.badge_id,
-    icon: iconMap[ub.badge?.icon || 'award'] || Award,
+    icon: iconMap[(ub.badge?.icon || 'award').toLowerCase()] || Award,
     name: ub.badge?.name || 'Бейдж',
     description: ub.badge?.description || '',
-    color: colorMap[ub.badge?.color || 'primary'] || 'bg-primary',
+    color: colorMap[(ub.badge?.color || 'primary').toLowerCase()] || 'bg-primary',
     date: ub.earned_at ? new Date(ub.earned_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : '',
   }));
 
@@ -52,33 +94,15 @@ export const ProfileBadges = () => {
   const inProgressBadges = (allBadges || [])
     .filter(b => !earnedBadgeIds.has(b.id))
     .map(b => {
-      // Calculate progress based on requirement type
-      let progress = 0;
-      if (profile) {
-        switch (b.requirement_type) {
-          case 'streak':
-            progress = Math.min(100, Math.round((profile.streak / b.requirement_value) * 100));
-            break;
-          case 'photos':
-            // Would need photos count from profile
-            progress = 0;
-            break;
-          case 'xp':
-            progress = Math.min(100, Math.round((profile.xp / b.requirement_value) * 100));
-            break;
-          case 'level':
-            progress = Math.min(100, Math.round((profile.level / b.requirement_value) * 100));
-            break;
-          default:
-            progress = 0;
-        }
-      }
+      const requirement = b.requirement_value || 1;
+      const progressValue = metrics ? getBadgeProgressValue(b, metrics) : 0;
+      const progress = Math.min(100, Math.round((progressValue / requirement) * 100));
       return {
         id: b.id,
-        icon: iconMap[b.icon || 'award'] || Award,
+        icon: iconMap[(b.icon || 'award').toLowerCase()] || Award,
         name: b.name,
         description: b.description,
-        color: colorMap[b.color || 'primary'] || 'bg-primary',
+        color: colorMap[(b.color || 'primary').toLowerCase()] || 'bg-primary',
         progress,
       };
     })
