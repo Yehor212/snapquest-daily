@@ -1,85 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Play, Trophy } from 'lucide-react';
+import { ArrowLeft, Play, Trophy, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { HuntTaskCard, HuntProgress as HuntProgressComponent } from '@/components/hunt';
-import { DifficultyBadge, XpBadge, CountdownTimer } from '@/components/common';
-import type { ScavengerHunt, HuntProgress } from '@/types';
+import { DifficultyBadge, XpBadge } from '@/components/common';
 import { UI_TEXT } from '@/types';
-import { mockHunts } from '@/data/mockData';
-import { getHuntProgressById, saveHuntProgress, generateId } from '@/lib/storage';
 import { useToast } from '@/hooks/use-toast';
+import { useHuntWithTasks, useHuntProgress, useStartHunt } from '@/hooks/useHunts';
 
 export default function HuntDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
 
-  const [hunt, setHunt] = useState<ScavengerHunt | null>(null);
-  const [progress, setProgress] = useState<HuntProgress | null>(null);
+  const { data: huntData, isLoading: huntLoading } = useHuntWithTasks(id);
+  const { data: progress, isLoading: progressLoading } = useHuntProgress(id);
+  const startHuntMutation = useStartHunt();
+
   const [showHints, setShowHints] = useState(false);
 
-  useEffect(() => {
-    // Find hunt by ID
-    const foundHunt = mockHunts.find(h => h.id === id);
-    if (foundHunt) {
-      setHunt(foundHunt);
-      // Load progress
-      const savedProgress = getHuntProgressById(id!);
-      setProgress(savedProgress || null);
+  const handleStartHunt = async () => {
+    if (!id) return;
+
+    try {
+      await startHuntMutation.mutateAsync(id);
+      toast({ title: 'Охота началась!', description: 'Удачи!' });
+    } catch (error) {
+      toast({ title: 'Ошибка', description: 'Не удалось начать охоту', variant: 'destructive' });
     }
-  }, [id]);
-
-  const handleStartHunt = () => {
-    if (!hunt) return;
-
-    const newProgress: HuntProgress = {
-      id: generateId(),
-      huntId: hunt.id,
-      userId: 'user-1',
-      startedAt: new Date().toISOString(),
-      tasksCompleted: [],
-      totalXpEarned: 0,
-    };
-
-    saveHuntProgress(hunt.id, newProgress);
-    setProgress(newProgress);
-    toast({ title: 'Охота началась!', description: 'Удачи!' });
   };
 
   const handleTaskClick = (taskId: string) => {
-    if (!hunt || !progress) return;
+    if (!progress) return;
 
     // If task is not completed, navigate to upload
-    if (!progress.tasksCompleted.includes(taskId)) {
-      navigate(`/upload?huntTask=${taskId}`);
+    if (!progress.completed_tasks.includes(taskId)) {
+      navigate(`/upload?huntId=${id}&huntTask=${taskId}`);
     }
   };
 
-  const handleCompleteTask = (taskId: string, xpReward: number) => {
-    if (!hunt || !progress) return;
+  if (huntLoading || progressLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
-    const updatedProgress: HuntProgress = {
-      ...progress,
-      tasksCompleted: [...progress.tasksCompleted, taskId],
-      totalXpEarned: progress.totalXpEarned + xpReward,
-    };
-
-    // Check if all tasks completed
-    if (updatedProgress.tasksCompleted.length === hunt.tasks.length) {
-      updatedProgress.completedAt = new Date().toISOString();
-      toast({
-        title: 'Охота завершена!',
-        description: `Вы заработали ${updatedProgress.totalXpEarned} XP`,
-      });
-    }
-
-    saveHuntProgress(hunt.id, updatedProgress);
-    setProgress(updatedProgress);
-  };
-
-  if (!hunt) {
+  if (!huntData?.hunt) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-muted-foreground">Охота не найдена</p>
@@ -87,8 +56,46 @@ export default function HuntDetailPage() {
     );
   }
 
+  const { hunt, tasks } = huntData;
   const isStarted = progress !== null;
-  const isCompleted = progress?.completedAt !== undefined;
+  const isCompleted = progress?.completed_at !== null && progress?.completed_at !== undefined;
+
+  // Map tasks to UI format
+  const mappedTasks = tasks.map(t => ({
+    id: t.id,
+    huntId: t.hunt_id,
+    title: t.title,
+    description: t.description || '',
+    order: t.order_num,
+    xpReward: t.xp_reward,
+    hint: t.hint || undefined,
+  }));
+
+  // Map progress to UI format
+  const mappedProgress = progress ? {
+    id: progress.id,
+    huntId: progress.hunt_id,
+    userId: progress.user_id,
+    startedAt: progress.started_at,
+    tasksCompleted: progress.completed_tasks,
+    totalXpEarned: progress.total_xp_earned,
+    completedAt: progress.completed_at || undefined,
+  } : null;
+
+  // Map hunt to UI format
+  const mappedHunt = {
+    id: hunt.id,
+    title: hunt.title,
+    description: hunt.description || '',
+    coverImage: hunt.cover_image || 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800',
+    theme: hunt.theme,
+    difficulty: hunt.difficulty,
+    duration: hunt.duration,
+    totalXp: hunt.total_xp,
+    isActive: hunt.is_active,
+    tasks: mappedTasks,
+    createdAt: hunt.created_at,
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -113,7 +120,7 @@ export default function HuntDetailPage() {
           className="relative h-48 rounded-2xl overflow-hidden"
         >
           <img
-            src={hunt.coverImage}
+            src={mappedHunt.coverImage}
             alt={hunt.title}
             className="w-full h-full object-cover"
           />
@@ -134,20 +141,22 @@ export default function HuntDetailPage() {
               {hunt.title}
             </h2>
             <div className="flex items-center gap-3">
-              <XpBadge xp={hunt.totalXp} />
+              <XpBadge xp={hunt.total_xp} />
               <span className="text-sm text-white/70">
-                {hunt.tasks.length} заданий
+                {tasks.length} заданий
               </span>
             </div>
           </div>
         </motion.div>
 
         {/* Description */}
-        <p className="text-muted-foreground">{hunt.description}</p>
+        {hunt.description && (
+          <p className="text-muted-foreground">{hunt.description}</p>
+        )}
 
         {/* Progress */}
-        {isStarted && (
-          <HuntProgressComponent hunt={hunt} progress={progress} />
+        {isStarted && mappedProgress && (
+          <HuntProgressComponent hunt={mappedHunt} progress={mappedProgress} />
         )}
 
         {/* Start button or Tasks */}
@@ -160,9 +169,14 @@ export default function HuntDetailPage() {
             <Button
               size="lg"
               onClick={handleStartHunt}
+              disabled={startHuntMutation.isPending}
               className="gap-2 bg-gradient-to-r from-primary to-accent"
             >
-              <Play className="w-5 h-5" />
+              {startHuntMutation.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Play className="w-5 h-5" />
+              )}
               Начать охоту
             </Button>
           </motion.div>
@@ -179,12 +193,12 @@ export default function HuntDetailPage() {
               </Button>
             </div>
 
-            {hunt.tasks.map((task, index) => (
+            {mappedTasks.map((task, index) => (
               <HuntTaskCard
                 key={task.id}
                 task={task}
                 order={index + 1}
-                isCompleted={progress?.tasksCompleted.includes(task.id) || false}
+                isCompleted={progress?.completed_tasks.includes(task.id) || false}
                 onClick={() => handleTaskClick(task.id)}
                 showHint={showHints}
               />
@@ -206,7 +220,7 @@ export default function HuntDetailPage() {
             <p className="text-muted-foreground mb-4">
               Вы успешно завершили эту охоту
             </p>
-            <XpBadge xp={progress?.totalXpEarned || 0} size="lg" />
+            <XpBadge xp={progress?.total_xp_earned || 0} size="lg" />
           </motion.div>
         )}
       </main>

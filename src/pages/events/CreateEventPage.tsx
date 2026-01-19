@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Check, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Plus, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,14 +13,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { PrivateEvent, EventType, EventChallenge } from '@/types';
 import { UI_TEXT } from '@/types';
-import { saveEvent, generateId, generateAccessCode } from '@/lib/storage';
 import { useToast } from '@/hooks/use-toast';
+import { useCreateEvent } from '@/hooks/useEvents';
+import type { Event } from '@/lib/api/events';
 
 type Step = 1 | 2 | 3;
+type EventType = Event['event_type'];
 
-const defaultChallenges: Partial<EventChallenge>[] = [
+interface ChallengeInput {
+  title: string;
+  description: string;
+  xpReward: number;
+}
+
+const defaultChallenges: ChallengeInput[] = [
   { title: 'Групповое фото', description: 'Соберите всех вместе!', xpReward: 50 },
   { title: 'Селфи с организатором', description: 'Найдите хозяина праздника', xpReward: 40 },
   { title: 'Лучший момент', description: 'Поймайте самый яркий кадр', xpReward: 60 },
@@ -29,12 +36,13 @@ const defaultChallenges: Partial<EventChallenge>[] = [
 export default function CreateEventPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const createEventMutation = useCreateEvent();
 
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [eventType, setEventType] = useState<EventType>('party');
-  const [challenges, setChallenges] = useState<Partial<EventChallenge>[]>(defaultChallenges);
+  const [challenges, setChallenges] = useState<ChallengeInput[]>(defaultChallenges);
 
   const handleAddChallenge = () => {
     setChallenges([
@@ -49,7 +57,7 @@ export default function CreateEventPage() {
 
   const handleChallengeChange = (
     index: number,
-    field: keyof EventChallenge,
+    field: keyof ChallengeInput,
     value: string | number
   ) => {
     const updated = [...challenges];
@@ -71,50 +79,49 @@ export default function CreateEventPage() {
     }
   };
 
-  const handleCreate = () => {
-    const eventId = generateId();
-    const accessCode = generateAccessCode();
+  const handleCreate = async () => {
+    try {
+      const validChallenges = challenges
+        .filter(c => c.title.trim())
+        .map(c => ({
+          title: c.title,
+          description: c.description || undefined,
+        }));
 
-    const newEvent: PrivateEvent = {
-      id: eventId,
-      name,
-      description,
-      accessCode,
-      creatorId: 'user-1',
-      eventType,
-      startDate: new Date().toISOString(),
-      endDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date().toISOString(),
-      participantsCount: 1,
-      status: 'active',
-      challenges: challenges
-        .filter(c => c.title)
-        .map((c, index) => ({
-          id: generateId(),
-          eventId,
-          title: c.title!,
-          description: c.description || '',
-          order: index + 1,
-          xpReward: c.xpReward || 30,
-        })),
-    };
+      const event = await createEventMutation.mutateAsync({
+        name,
+        eventType,
+        description: description || undefined,
+        challenges: validChallenges,
+      });
 
-    saveEvent(newEvent);
-    toast({
-      title: 'Событие создано!',
-      description: `Код доступа: ${accessCode}`,
-    });
-    navigate(`/events/${eventId}`);
+      if (event) {
+        toast({
+          title: 'Событие создано!',
+          description: `Код доступа: ${event.access_code}`,
+        });
+        navigate(`/events/${event.id}`);
+      } else {
+        throw new Error('Failed to create event');
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось создать событие',
+        variant: 'destructive',
+      });
+    }
   };
 
   const canProceed = step === 1 ? name.trim().length > 0 : true;
+  const isCreating = createEventMutation.isPending;
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={handleBack}>
+          <Button variant="ghost" size="icon" onClick={handleBack} disabled={isCreating}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <h1 className="font-display text-lg font-semibold">
@@ -328,7 +335,7 @@ export default function CreateEventPage() {
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
           <div className="container mx-auto max-w-md flex gap-3">
             {step > 1 && (
-              <Button variant="outline" onClick={handleBack} className="flex-1">
+              <Button variant="outline" onClick={handleBack} className="flex-1" disabled={isCreating}>
                 Назад
               </Button>
             )}
@@ -345,10 +352,20 @@ export default function CreateEventPage() {
             ) : (
               <Button
                 onClick={handleCreate}
+                disabled={isCreating}
                 className="flex-1 gap-2 bg-gradient-to-r from-primary to-accent"
               >
-                <Check className="w-4 h-4" />
-                Создать событие
+                {isCreating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Создание...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Создать событие
+                  </>
+                )}
               </Button>
             )}
           </div>

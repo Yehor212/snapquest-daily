@@ -184,8 +184,8 @@ export const ChallengeFeed = () => {
                   id={photo.id}
                   imageUrl={photo.image_url}
                   likesCount={photo.likes_count}
-                  username={photo.user_id.slice(0, 8)}
-                  avatarUrl={null}
+                  username={photo.display_name || photo.username || photo.user_id.slice(0, 8)}
+                  avatarUrl={photo.avatar_url}
                   isTop={photo.likes_count >= 10}
                   createdAt={photo.created_at}
                 />

@@ -67,6 +67,7 @@ create table photos (
   thumbnail_url text,
   challenge_id uuid references challenges(id) on delete set null,
   event_id uuid references events(id) on delete set null,
+  event_challenge_id uuid references event_challenges(id) on delete set null,
   hunt_id uuid references hunts(id) on delete set null,
   hunt_task_id uuid,
   filter_applied text,

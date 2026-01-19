@@ -24,9 +24,11 @@ export default function UploadPage() {
   const uploadPhotoMutation = useUploadPhoto();
   const addXpMutation = useAddXp();
 
-  const challengeId = searchParams.get('challenge') || challenge?.id;
+  // Support both challengeId and challenge query params
+  const challengeId = searchParams.get('challengeId') || searchParams.get('challenge') || challenge?.id;
   const eventId = searchParams.get('event');
-  const huntId = searchParams.get('hunt');
+  const eventChallengeId = searchParams.get('eventChallenge');
+  const huntId = searchParams.get('huntId') || searchParams.get('hunt');
   const huntTaskId = searchParams.get('huntTask');
 
   const [step, setStep] = useState<Step>('select');
@@ -147,6 +149,7 @@ export default function UploadPage() {
         options: {
           challengeId: challengeId || undefined,
           eventId: eventId || undefined,
+          eventChallengeId: eventChallengeId || undefined,
           huntId: huntId || undefined,
           huntTaskId: huntTaskId || undefined,
           filter: editOptions.filter !== 'none' ? editOptions.filter : undefined,

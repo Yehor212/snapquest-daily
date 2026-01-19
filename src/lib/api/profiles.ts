@@ -1,13 +1,14 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
+// Profile interface matches DB schema (snake_case: xp, streak)
 export interface Profile {
   id: string;
   username: string | null;
   display_name: string | null;
   avatar_url: string | null;
-  total_xp: number;
+  xp: number;
   level: number;
-  current_streak: number;
+  streak: number;
   longest_streak: number;
   created_at: string;
   updated_at: string;
@@ -26,9 +27,48 @@ export interface Badge {
   name: string;
   description: string;
   icon: string;
-  color: string;
+  category: string;
   requirement_type: string;
   requirement_value: number;
+}
+
+/**
+ * Ensure profile exists for user (upsert)
+ */
+export async function ensureProfile(userId: string, email?: string): Promise<Profile | null> {
+  if (!isSupabaseConfigured) return null;
+
+  // Try to get existing profile
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (existing) return existing;
+
+  // Create new profile
+  const username = email?.split('@')[0] || `user_${userId.slice(0, 8)}`;
+  const { data, error } = await supabase
+    .from('profiles')
+    .insert({
+      id: userId,
+      username,
+      display_name: username,
+      xp: 0,
+      level: 1,
+      streak: 0,
+      longest_streak: 0,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating profile:', error);
+    return null;
+  }
+
+  return data;
 }
 
 /**
@@ -44,11 +84,16 @@ export async function getCurrentProfile(): Promise<Profile | null> {
     .from('profiles')
     .select('*')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Error fetching profile:', error);
     return null;
+  }
+
+  // Profile doesn't exist - create it
+  if (!data) {
+    return ensureProfile(user.id, user.email || undefined);
   }
 
   return data;
@@ -87,27 +132,50 @@ export async function addXp(amount: number): Promise<Profile | null> {
   const profile = await getCurrentProfile();
   if (!profile) return null;
 
-  const newXp = profile.total_xp + amount;
+  const newXp = profile.xp + amount;
   const newLevel = Math.floor(newXp / 100) + 1;
 
-  return updateProfile({ total_xp: newXp, level: newLevel });
+  return updateProfile({ xp: newXp, level: newLevel });
+}
+
+/**
+ * Update user streak
+ */
+export async function updateStreak(): Promise<Profile | null> {
+  if (!isSupabaseConfigured) return null;
+
+  const profile = await getCurrentProfile();
+  if (!profile) return null;
+
+  const newStreak = profile.streak + 1;
+  const longestStreak = Math.max(newStreak, profile.longest_streak);
+
+  return updateProfile({ streak: newStreak, longest_streak: longestStreak });
+}
+
+export interface UserStats {
+  profile: Profile | null;
+  photosCount: number;
+  badgesCount: number;
+  badges: UserBadge[];
 }
 
 /**
  * Get user stats
  */
-export async function getUserStats(userId: string) {
+export async function getUserStats(userId: string): Promise<UserStats | null> {
   if (!isSupabaseConfigured) return null;
 
   const [profileResult, photosResult, badgesResult] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', userId).single(),
+    supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
     supabase.from('photos').select('id', { count: 'exact' }).eq('user_id', userId),
-    supabase.from('user_badges').select('badge_id, badges(*)').eq('user_id', userId),
+    supabase.from('user_badges').select('*, badge:badges(*)').eq('user_id', userId),
   ]);
 
   return {
     profile: profileResult.data,
     photosCount: photosResult.count || 0,
+    badgesCount: badgesResult.data?.length || 0,
     badges: badgesResult.data || [],
   };
 }

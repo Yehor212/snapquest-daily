@@ -27,8 +27,8 @@ export const Header = () => {
     return num.toString();
   };
 
-  const streak = profile?.current_streak || 0;
-  const totalXp = profile?.total_xp || 0;
+  const streak = profile?.streak || 0;
+  const totalXp = profile?.xp || 0;
 
   return (
     <motion.header

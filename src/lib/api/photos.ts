@@ -9,9 +9,16 @@ export interface Photo {
   event_id: string | null;
   hunt_id: string | null;
   hunt_task_id: string | null;
+  event_challenge_id: string | null;
   filter_applied: string | null;
   likes_count: number;
   created_at: string;
+}
+
+export interface PhotoWithProfile extends Photo {
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
 }
 
 /**
@@ -22,6 +29,7 @@ export async function uploadPhoto(
   options?: {
     challengeId?: string;
     eventId?: string;
+    eventChallengeId?: string;
     huntId?: string;
     huntTaskId?: string;
     filter?: string;
@@ -57,11 +65,12 @@ export async function uploadPhoto(
     .insert({
       user_id: user.id,
       image_url: publicUrl,
-      challenge_id: options?.challengeId,
-      event_id: options?.eventId,
-      hunt_id: options?.huntId,
-      hunt_task_id: options?.huntTaskId,
-      filter_applied: options?.filter,
+      challenge_id: options?.challengeId || null,
+      event_id: options?.eventId || null,
+      event_challenge_id: options?.eventChallengeId || null,
+      hunt_id: options?.huntId || null,
+      hunt_task_id: options?.huntTaskId || null,
+      filter_applied: options?.filter || null,
     })
     .select()
     .single();
@@ -104,14 +113,21 @@ export async function getUserPhotos(userId?: string): Promise<Photo[]> {
 }
 
 /**
- * Get all public photos (feed)
+ * Get all public photos (feed) with profile info
  */
-export async function getPhotoFeed(limit = 20, offset = 0): Promise<Photo[]> {
+export async function getPhotoFeed(limit = 20, offset = 0): Promise<PhotoWithProfile[]> {
   if (!isSupabaseConfigured) return [];
 
   const { data, error } = await supabase
     .from('photos')
-    .select('*')
+    .select(`
+      *,
+      profiles:user_id (
+        username,
+        display_name,
+        avatar_url
+      )
+    `)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -120,7 +136,17 @@ export async function getPhotoFeed(limit = 20, offset = 0): Promise<Photo[]> {
     return [];
   }
 
-  return data || [];
+  // Map to PhotoWithProfile
+  return (data || []).map(photo => {
+    const profile = photo.profiles as any;
+    return {
+      ...photo,
+      username: profile?.username || null,
+      display_name: profile?.display_name || null,
+      avatar_url: profile?.avatar_url || null,
+      profiles: undefined, // Remove nested object
+    };
+  });
 }
 
 /**
@@ -181,7 +207,7 @@ export async function hasUserLikedPhoto(photoId: string): Promise<boolean> {
     .select('id')
     .eq('photo_id', photoId)
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
   return !!data;
 }

@@ -1,55 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Share2, Users, Camera, Calendar } from 'lucide-react';
+import { ArrowLeft, Share2, Users, Camera, Calendar, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EventChallengeList, EventShareDialog } from '@/components/events';
 import { PhotoGallery } from '@/components/gallery';
 import { ProgressRing } from '@/components/common';
-import type { PrivateEvent, Photo } from '@/types';
 import { UI_TEXT } from '@/types';
-import { mockEvents, mockPhotos } from '@/data/mockData';
-import { getEvents, getPhotosByFilter } from '@/lib/storage';
+import { useEventDetails } from '@/hooks/useEvents';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function EventDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-
-  const [event, setEvent] = useState<PrivateEvent | null>(null);
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [completedChallenges, setCompletedChallenges] = useState<string[]>([]);
+  const { user } = useAuth();
+  const { data: eventData, isLoading } = useEventDetails(id);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
-  useEffect(() => {
-    // Find event
-    const savedEvents = getEvents();
-    const allEvents = [...savedEvents, ...mockEvents];
-    const foundEvent = allEvents.find(e => e.id === id);
-
-    if (foundEvent) {
-      setEvent(foundEvent);
-
-      // Load photos for this event
-      getPhotosByFilter({ eventId: id }).then(savedPhotos => {
-        // Combine with mock photos that might be for this event
-        const eventMockPhotos = mockPhotos.filter(p => p.eventId === id);
-        setPhotos([...savedPhotos, ...eventMockPhotos]);
-      });
-
-      // For demo, randomly mark some challenges as completed
-      const completed = foundEvent.challenges
-        .slice(0, Math.floor(foundEvent.challenges.length * 0.3))
-        .map(c => c.id);
-      setCompletedChallenges(completed);
-    }
-  }, [id]);
+  // Calculate completed challenges based on user's photos
+  const completedChallenges = useMemo(() => {
+    if (!eventData?.photos || !user) return [];
+    const userPhotos = eventData.photos.filter(p => p.user_id === user.id);
+    return userPhotos
+      .filter(p => p.event_challenge_id)
+      .map(p => p.event_challenge_id as string);
+  }, [eventData?.photos, user]);
 
   const handleChallengeClick = (challengeId: string) => {
     navigate(`/upload?event=${id}&eventChallenge=${challengeId}`);
   };
 
-  if (!event) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!eventData?.event) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-muted-foreground">Событие не найдено</p>
@@ -57,7 +47,9 @@ export default function EventDetailPage() {
     );
   }
 
-  const startDate = new Date(event.startDate);
+  const { event, challenges, participants, photos } = eventData;
+
+  const startDate = event.start_date ? new Date(event.start_date) : new Date(event.created_at);
   const formattedDate = startDate.toLocaleDateString('ru-RU', {
     day: 'numeric',
     month: 'long',
@@ -65,9 +57,32 @@ export default function EventDetailPage() {
   });
 
   const progressPercent =
-    event.challenges.length > 0
-      ? (completedChallenges.length / event.challenges.length) * 100
+    challenges.length > 0
+      ? (completedChallenges.length / challenges.length) * 100
       : 0;
+
+  // Map challenges to UI format
+  const mappedChallenges = challenges.map(c => ({
+    id: c.id,
+    eventId: c.event_id,
+    title: c.title,
+    description: c.description || '',
+    order: c.order_num,
+    xpReward: c.xp_reward,
+  }));
+
+  // Map photos for gallery
+  const mappedPhotos = photos.map(p => ({
+    id: p.id,
+    userId: p.user_id,
+    imageData: p.image_url,
+    thumbnailData: p.thumbnail_url || p.image_url,
+    createdAt: p.created_at,
+    likes: p.likes_count,
+    comments: 0,
+    isTop: p.likes_count >= 10,
+    eventId: p.event_id || undefined,
+  }));
 
   return (
     <div className="min-h-screen bg-background">
@@ -97,9 +112,9 @@ export default function EventDetailPage() {
           animate={{ opacity: 1, y: 0 }}
           className="relative h-48 rounded-2xl overflow-hidden"
         >
-          {event.coverImage ? (
+          {event.cover_image ? (
             <img
-              src={event.coverImage}
+              src={event.cover_image}
               alt={event.name}
               className="w-full h-full object-cover"
             />
@@ -112,7 +127,7 @@ export default function EventDetailPage() {
           <div className="absolute bottom-0 left-0 right-0 p-4">
             <div className="flex items-center gap-2 mb-2">
               <span className="px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm text-xs font-medium">
-                {UI_TEXT.events.eventTypes[event.eventType]}
+                {UI_TEXT.events.eventTypes[event.event_type]}
               </span>
             </div>
             <h2 className="font-display text-2xl font-bold text-white mb-2">
@@ -125,7 +140,7 @@ export default function EventDetailPage() {
               </span>
               <span className="flex items-center gap-1">
                 <Users className="w-4 h-4" />
-                {event.participantsCount}
+                {participants.length}
               </span>
             </div>
           </div>
@@ -133,13 +148,15 @@ export default function EventDetailPage() {
           {/* Access code */}
           <div className="absolute top-3 right-3">
             <span className="px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-sm font-mono">
-              {event.accessCode}
+              {event.access_code}
             </span>
           </div>
         </motion.div>
 
         {/* Description */}
-        <p className="text-muted-foreground">{event.description}</p>
+        {event.description && (
+          <p className="text-muted-foreground">{event.description}</p>
+        )}
 
         {/* Progress */}
         <motion.div
@@ -152,7 +169,7 @@ export default function EventDetailPage() {
           </ProgressRing>
           <div>
             <p className="font-medium">
-              {completedChallenges.length} из {event.challenges.length} заданий
+              {completedChallenges.length} из {challenges.length} заданий
             </p>
             <p className="text-sm text-muted-foreground">
               Выполнено вами
@@ -175,15 +192,15 @@ export default function EventDetailPage() {
 
           <TabsContent value="challenges" className="mt-4">
             <EventChallengeList
-              challenges={event.challenges}
+              challenges={mappedChallenges}
               completedIds={completedChallenges}
               onChallengeClick={(c) => handleChallengeClick(c.id)}
             />
           </TabsContent>
 
           <TabsContent value="gallery" className="mt-4">
-            {photos.length > 0 ? (
-              <PhotoGallery photos={photos} columns={2} />
+            {mappedPhotos.length > 0 ? (
+              <PhotoGallery photos={mappedPhotos} columns={2} />
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 <Camera className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -200,7 +217,7 @@ export default function EventDetailPage() {
         open={shareDialogOpen}
         onOpenChange={setShareDialogOpen}
         eventName={event.name}
-        accessCode={event.accessCode}
+        accessCode={event.access_code}
       />
     </div>
   );

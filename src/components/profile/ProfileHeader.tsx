@@ -52,10 +52,10 @@ export const ProfileHeader = () => {
   const displayName = profile?.display_name || user?.email?.split('@')[0] || "Пользователь";
   const username = profile?.username || user?.email?.split('@')[0] || "user";
   const level = profile?.level || 1;
-  const totalXp = profile?.total_xp || 0;
-  const streak = profile?.current_streak || 0;
-  const photosCount = stats?.photos_count || 0;
-  const badgesCount = stats?.badges_count || 0;
+  const totalXp = profile?.xp || 0;
+  const streak = profile?.streak || 0;
+  const photosCount = stats?.photosCount || 0;
+  const badgesCount = stats?.badgesCount || 0;
 
   const quickStats = [
     { icon: Camera, label: "Фото", value: formatNumber(photosCount), color: "text-primary" },
