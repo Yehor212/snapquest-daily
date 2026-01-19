@@ -1,23 +1,59 @@
 import { motion } from "framer-motion";
-import { Flame, Trophy, Star, Target, Zap, Crown } from "lucide-react";
+import { Flame, Trophy, Star, Target, Zap, Crown, Camera, Award, Loader2 } from "lucide-react";
+import { useAllBadges, useUserBadges, useLeaderboard, useUserRank, useCurrentProfile } from "@/hooks/useProfile";
+import type { Badge } from "@/lib/api/profiles";
 
-const badges = [
-  { icon: Flame, name: "7 дней подряд", color: "bg-primary", earned: true },
-  { icon: Star, name: "Первый ТОП", color: "bg-gold", earned: true },
-  { icon: Target, name: "Снайпер", color: "bg-accent", earned: true },
-  { icon: Zap, name: "Молния", color: "bg-success", earned: false },
-  { icon: Crown, name: "Легенда", color: "bg-primary", earned: false },
-];
+// Icon mapping for badge icons from database
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  flame: Flame,
+  star: Star,
+  target: Target,
+  zap: Zap,
+  crown: Crown,
+  trophy: Trophy,
+  camera: Camera,
+  award: Award,
+};
 
-const leaderboard = [
-  { rank: 1, name: "anna_photo", xp: 15420, avatar: "A", color: "bg-gold" },
-  { rank: 2, name: "maxim.creative", xp: 14890, avatar: "M", color: "bg-muted-foreground" },
-  { rank: 3, name: "elena_art", xp: 13750, avatar: "E", color: "bg-primary" },
-  { rank: 4, name: "dmitry_shots", xp: 12340, avatar: "D", color: "bg-accent" },
-  { rank: 5, name: "kate.moments", xp: 11890, avatar: "K", color: "bg-success" },
-];
+// Color mapping for badge colors from database
+const colorMap: Record<string, string> = {
+  primary: "bg-primary",
+  gold: "bg-gold",
+  accent: "bg-accent",
+  success: "bg-success",
+  destructive: "bg-destructive",
+};
+
+function getBadgeIcon(badge: Badge) {
+  return iconMap[badge.icon?.toLowerCase()] || Award;
+}
+
+function getBadgeColor(badge: Badge) {
+  return colorMap[badge.color?.toLowerCase()] || "bg-primary";
+}
 
 export const Gamification = () => {
+  const { data: allBadges, isLoading: badgesLoading } = useAllBadges();
+  const { data: userBadges } = useUserBadges();
+  const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(5);
+  const { data: userRank } = useUserRank();
+  const { data: profile } = useCurrentProfile();
+
+  // Create a set of earned badge IDs for quick lookup
+  const earnedBadgeIds = new Set(userBadges?.map(ub => ub.badge_id) || []);
+
+  // Map all badges with earned status
+  const displayBadges = (allBadges || []).slice(0, 5).map(badge => ({
+    ...badge,
+    earned: earnedBadgeIds.has(badge.id),
+  }));
+
+  const earnedCount = userBadges?.length || 0;
+  const totalBadges = allBadges?.length || 0;
+
+  // Find next badge to earn (first unearned)
+  const nextBadge = displayBadges.find(b => !b.earned);
+
   return (
     <section className="py-20 bg-gradient-to-b from-background via-secondary/20 to-background">
       <div className="container mx-auto px-4">
@@ -51,58 +87,70 @@ export const Gamification = () => {
                 </div>
                 <div>
                   <h3 className="font-display font-bold text-lg">Твои бейджи</h3>
-                  <p className="text-sm text-muted-foreground">3 из 12 получено</p>
+                  <p className="text-sm text-muted-foreground">{earnedCount} из {totalBadges} получено</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-5 gap-3">
-                {badges.map((badge, index) => (
-                  <motion.div
-                    key={badge.name}
-                    initial={{ opacity: 0, scale: 0 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.3, delay: index * 0.1 }}
-                    className="group relative"
-                  >
-                    <div
-                      className={`aspect-square rounded-xl ${
-                        badge.earned
-                          ? `${badge.color} shadow-lg`
-                          : "bg-secondary border border-border"
-                      } flex items-center justify-center transition-transform group-hover:scale-110`}
-                    >
-                      <badge.icon
-                        className={`w-6 h-6 ${
-                          badge.earned ? "text-primary-foreground" : "text-muted-foreground/40"
-                        }`}
-                      />
-                    </div>
-                    
-                    {/* Tooltip */}
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-foreground text-background text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      {badge.name}
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+              {badgesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-5 gap-3">
+                  {displayBadges.map((badge, index) => {
+                    const IconComponent = getBadgeIcon(badge);
+                    const colorClass = getBadgeColor(badge);
+                    return (
+                      <motion.div
+                        key={badge.id}
+                        initial={{ opacity: 0, scale: 0 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.3, delay: index * 0.1 }}
+                        className="group relative"
+                      >
+                        <div
+                          className={`aspect-square rounded-xl ${
+                            badge.earned
+                              ? `${colorClass} shadow-lg`
+                              : "bg-secondary border border-border"
+                          } flex items-center justify-center transition-transform group-hover:scale-110`}
+                        >
+                          <IconComponent
+                            className={`w-6 h-6 ${
+                              badge.earned ? "text-primary-foreground" : "text-muted-foreground/40"
+                            }`}
+                          />
+                        </div>
 
-              {/* Progress */}
-              <div className="mt-6 pt-4 border-t border-border">
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">До следующего бейджа</span>
-                  <span className="font-semibold">2 дня</span>
+                        {/* Tooltip */}
+                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-foreground text-background text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                          {badge.name}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    whileInView={{ width: "71%" }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 1, delay: 0.5 }}
-                    className="h-full gradient-primary rounded-full"
-                  />
+              )}
+
+              {/* Progress to next badge */}
+              {nextBadge && (
+                <div className="mt-6 pt-4 border-t border-border">
+                  <div className="flex items-center justify-between text-sm mb-2">
+                    <span className="text-muted-foreground">Следующий: {nextBadge.name}</span>
+                    <span className="font-semibold">{nextBadge.requirement_value || 0} {nextBadge.requirement_type === 'streak' ? 'дней' : ''}</span>
+                  </div>
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      whileInView={{ width: `${Math.min(100, ((profile?.streak || 0) / (nextBadge.requirement_value || 1)) * 100)}%` }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 1, delay: 0.5 }}
+                      className="h-full gradient-primary rounded-full"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </motion.div>
 
@@ -119,49 +167,76 @@ export const Gamification = () => {
                   <Crown className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-display font-bold text-lg">Лидерборд недели</h3>
-                  <p className="text-sm text-muted-foreground">Ты на 47 месте</p>
+                  <h3 className="font-display font-bold text-lg">Лидерборд</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {userRank ? `Ты на ${userRank} месте` : 'Войди, чтобы увидеть свой рейтинг'}
+                  </p>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                {leaderboard.map((user, index) => (
-                  <motion.div
-                    key={user.name}
-                    initial={{ opacity: 0, x: 20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.3, delay: index * 0.1 }}
-                    className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors"
-                  >
-                    {/* Rank */}
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
-                      user.rank === 1 ? "bg-gold text-gold-foreground" :
-                      user.rank === 2 ? "bg-muted-foreground text-background" :
-                      user.rank === 3 ? "bg-primary text-primary-foreground" :
-                      "bg-secondary text-muted-foreground"
-                    }`}>
-                      {user.rank}
-                    </div>
+              {leaderboardLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : (leaderboard && leaderboard.length > 0) ? (
+                <div className="space-y-3">
+                  {leaderboard.map((user, index) => {
+                    const colors = ["bg-gold", "bg-muted-foreground", "bg-primary", "bg-accent", "bg-success"];
+                    const avatarColor = colors[index % colors.length];
+                    const displayName = user.display_name || user.username || 'Аноним';
+                    const avatar = displayName.charAt(0).toUpperCase();
 
-                    {/* Avatar */}
-                    <div className={`w-10 h-10 rounded-full ${user.color} flex items-center justify-center text-sm font-semibold text-primary-foreground`}>
-                      {user.avatar}
-                    </div>
+                    return (
+                      <motion.div
+                        key={user.id}
+                        initial={{ opacity: 0, x: 20 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.3, delay: index * 0.1 }}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors"
+                      >
+                        {/* Rank */}
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                          user.rank === 1 ? "bg-gold text-gold-foreground" :
+                          user.rank === 2 ? "bg-muted-foreground text-background" :
+                          user.rank === 3 ? "bg-primary text-primary-foreground" :
+                          "bg-secondary text-muted-foreground"
+                        }`}>
+                          {user.rank}
+                        </div>
 
-                    {/* Info */}
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{user.name}</p>
-                    </div>
+                        {/* Avatar */}
+                        {user.avatar_url ? (
+                          <img
+                            src={user.avatar_url}
+                            alt={displayName}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className={`w-10 h-10 rounded-full ${avatarColor} flex items-center justify-center text-sm font-semibold text-primary-foreground`}>
+                            {avatar}
+                          </div>
+                        )}
 
-                    {/* XP */}
-                    <div className="flex items-center gap-1 text-gold">
-                      <Star className="w-4 h-4" />
-                      <span className="font-semibold text-sm">{user.xp.toLocaleString()}</span>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+                        {/* Info */}
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{displayName}</p>
+                        </div>
+
+                        {/* XP */}
+                        <div className="flex items-center gap-1 text-gold">
+                          <Star className="w-4 h-4" />
+                          <span className="font-semibold text-sm">{user.xp.toLocaleString()}</span>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Пока нет участников</p>
+                </div>
+              )}
             </div>
           </motion.div>
         </div>

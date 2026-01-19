@@ -10,6 +10,8 @@ import {
   getAllBadges,
   getUserPhotosWithChallenges,
   getUserAchievements,
+  getLeaderboard,
+  getUserRank,
   Profile,
 } from '@/lib/api/profiles';
 
@@ -22,6 +24,8 @@ export const profileKeys = {
   allBadges: () => [...profileKeys.all, 'allBadges'] as const,
   photosWithChallenges: () => [...profileKeys.all, 'photosWithChallenges'] as const,
   achievements: () => [...profileKeys.all, 'achievements'] as const,
+  leaderboard: () => [...profileKeys.all, 'leaderboard'] as const,
+  rank: () => [...profileKeys.all, 'rank'] as const,
 };
 
 /**
@@ -149,6 +153,28 @@ export function useUserAchievements() {
   return useQuery({
     queryKey: profileKeys.achievements(),
     queryFn: getUserAchievements,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Hook to get leaderboard
+ */
+export function useLeaderboard(limit = 10) {
+  return useQuery({
+    queryKey: profileKeys.leaderboard(),
+    queryFn: () => getLeaderboard(limit),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Hook to get user's rank in leaderboard
+ */
+export function useUserRank() {
+  return useQuery({
+    queryKey: profileKeys.rank(),
+    queryFn: getUserRank,
     staleTime: 5 * 60 * 1000,
   });
 }

@@ -75,15 +75,12 @@ export interface Challenge {
 export type ChallengeCategory =
   | 'nature'
   | 'urban'
-  | 'portrait'
-  | 'abstract'
+  | 'people'
   | 'food'
-  | 'animals'
-  | 'architecture'
-  | 'seasonal'
-  | 'creative'
-  | 'colors'
-  | 'emotions';
+  | 'abstract'
+  | 'mood'
+  | 'color'
+  | 'light';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
@@ -111,8 +108,6 @@ export type EventType =
   | 'party'
   | 'teambuilding'
   | 'birthday'
-  | 'corporate'
-  | 'travel'
   | 'other';
 
 export interface EventChallenge {
@@ -163,13 +158,9 @@ export interface ScavengerHunt {
 export type HuntTheme =
   | 'city'
   | 'nature'
-  | 'food'
-  | 'travel'
   | 'home'
-  | 'work'
-  | 'seasonal'
-  | 'holiday'
-  | 'art';
+  | 'travel'
+  | 'seasonal';
 
 export type HuntDuration = 'day' | 'week' | 'month';
 
@@ -302,8 +293,6 @@ export const UI_TEXT = {
       party: 'Вечеринка',
       teambuilding: 'Тимбилдинг',
       birthday: 'День рождения',
-      corporate: 'Корпоратив',
-      travel: 'Путешествие',
       other: 'Другое',
     } as Record<EventType, string>,
     participants: 'участников',
@@ -320,13 +309,9 @@ export const UI_TEXT = {
     themes: {
       city: 'Город',
       nature: 'Природа',
-      food: 'Еда',
-      travel: 'Путешествие',
       home: 'Дом',
-      work: 'Работа',
+      travel: 'Путешествие',
       seasonal: 'Сезонный',
-      holiday: 'Праздник',
-      art: 'Искусство',
     } as Record<HuntTheme, string>,
     difficulty: {
       easy: 'Лёгкий',
@@ -370,15 +355,12 @@ export const UI_TEXT = {
   categories: {
     nature: 'Природа',
     urban: 'Город',
-    portrait: 'Портрет',
-    abstract: 'Абстракция',
+    people: 'Люди',
     food: 'Еда',
-    animals: 'Животные',
-    architecture: 'Архитектура',
-    seasonal: 'Сезонный',
-    creative: 'Креатив',
-    colors: 'Цвета',
-    emotions: 'Эмоции',
+    abstract: 'Абстракция',
+    mood: 'Настроение',
+    color: 'Цвет',
+    light: 'Свет',
   } as Record<ChallengeCategory, string>,
   common: {
     loading: 'Загрузка...',

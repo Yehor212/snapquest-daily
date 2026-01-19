@@ -42,31 +42,44 @@ export default function UploadPage() {
   // Fetch hunt data if huntId is present
   const { data: huntData } = useHuntWithTasks(huntId || undefined);
 
-  // State for dynamic XP based on context
+  // State for dynamic XP and verification title based on context
   const [contextXp, setContextXp] = useState<number>(50);
+  const [contextTitle, setContextTitle] = useState<string | null>(null);
+  const [contextDescription, setContextDescription] = useState<string | undefined>(undefined);
 
-  // Fetch XP reward based on context (event challenge or hunt task)
+  // Fetch XP reward and title based on context (event challenge or hunt task)
   useEffect(() => {
-    const fetchContextXp = async () => {
+    const fetchContext = async () => {
       if (eventChallengeId) {
         const { data } = await supabase
           .from('event_challenges')
-          .select('xp_reward')
+          .select('xp_reward, title, description')
           .eq('id', eventChallengeId)
           .single();
-        if (data) setContextXp(data.xp_reward);
+        if (data) {
+          setContextXp(data.xp_reward);
+          setContextTitle(data.title);
+          setContextDescription(data.description || undefined);
+        }
       } else if (huntTaskId && huntData?.tasks) {
         const task = huntData.tasks.find(t => t.id === huntTaskId);
-        if (task) setContextXp(task.xp_reward);
+        if (task) {
+          setContextXp(task.xp_reward);
+          setContextTitle(task.title);
+          setContextDescription(task.description || undefined);
+        }
       } else if (customXp) {
         // Use custom XP from generator URL param
         setContextXp(customXp);
+        setContextTitle(customChallengeTitle);
       } else if (challenge?.xp_reward) {
         setContextXp(challenge.xp_reward);
+        setContextTitle(challenge.title);
+        setContextDescription(challenge.description || undefined);
       }
     };
-    fetchContextXp();
-  }, [eventChallengeId, huntTaskId, huntData, challenge, customXp]);
+    fetchContext();
+  }, [eventChallengeId, huntTaskId, huntData, challenge, customXp, customChallengeTitle]);
 
   const [step, setStep] = useState<Step>('select');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -126,7 +139,7 @@ export default function UploadPage() {
       // Convert to file for verification
       const fileForVerification = await base64ToFile(processedImage, 'photo.jpg');
 
-      // Run AI verification if challenge exists
+      // Run AI verification if challenge/task exists
       let result: VerificationResult = {
         isValid: true,
         confidence: 1,
@@ -135,13 +148,17 @@ export default function UploadPage() {
         message: 'Фото принято',
       };
 
-      // Use challenge title for verification (DB challenge or custom from generator)
-      const verificationTitle = challenge?.title || customChallengeTitle;
+      // Use context title for verification (event challenge, hunt task, daily challenge, or custom)
+      const verificationTitle = contextTitle || challenge?.title || customChallengeTitle;
+      const verificationDescription = contextDescription || challenge?.description;
       if (verificationTitle) {
+        // Get HF API token from environment
+        const hfToken = import.meta.env.VITE_HUGGINGFACE_TOKEN;
         result = await verifyImage(
           fileForVerification,
           verificationTitle,
-          challenge?.description || undefined
+          verificationDescription || undefined,
+          hfToken || undefined
         );
       }
 

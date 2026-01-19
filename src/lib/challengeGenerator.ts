@@ -21,7 +21,7 @@ export const challengeTemplates: ChallengeTemplate[] = [
   {
     id: 'tmpl-1',
     pattern: 'Найдите [object] и сфотографируйте в [style]',
-    category: 'creative',
+    category: 'abstract',
     difficulty: 'easy',
     variables: [
       { name: 'object', type: 'object', options: ['красный предмет', 'круглый объект', 'что-то блестящее', 'старинную вещь', 'симметричный объект'] },
@@ -31,7 +31,7 @@ export const challengeTemplates: ChallengeTemplate[] = [
   {
     id: 'tmpl-2',
     pattern: 'Создайте фото с настроением "[emotion]" используя [color] цвет',
-    category: 'emotions',
+    category: 'mood',
     difficulty: 'medium',
     variables: [
       { name: 'emotion', type: 'emotion', options: ['спокойствие', 'радость', 'меланхолия', 'энергия', 'загадочность'] },
@@ -51,7 +51,7 @@ export const challengeTemplates: ChallengeTemplate[] = [
   {
     id: 'tmpl-4',
     pattern: 'Покажите [object] с точки зрения [angle]',
-    category: 'creative',
+    category: 'light',
     difficulty: 'medium',
     variables: [
       { name: 'object', type: 'object', options: ['вашу еду', 'рабочее место', 'любимую вещь', 'обувь', 'книгу'] },
@@ -61,7 +61,7 @@ export const challengeTemplates: ChallengeTemplate[] = [
   {
     id: 'tmpl-5',
     pattern: 'Найдите в городе [object] цвета [color]',
-    category: 'urban',
+    category: 'color',
     difficulty: 'easy',
     variables: [
       { name: 'object', type: 'object', options: ['дверь', 'машину', 'цветок', 'вывеску', 'скамейку'] },
@@ -156,7 +156,7 @@ export const additionalTemplates: ChallengeTemplate[] = [
   {
     id: 'tmpl-extra-1',
     pattern: 'Сфотографируйте [object] так, чтобы было видно [detail]',
-    category: 'creative',
+    category: 'light',
     difficulty: 'medium',
     variables: [
       { name: 'object', type: 'object', options: ['ваш обед', 'чашку кофе', 'любимую книгу', 'рабочий стол', 'окно'] },
@@ -166,7 +166,7 @@ export const additionalTemplates: ChallengeTemplate[] = [
   {
     id: 'tmpl-extra-2',
     pattern: 'Найдите [count] предметов [color] цвета и сфотографируйте их вместе',
-    category: 'colors',
+    category: 'color',
     difficulty: 'easy',
     variables: [
       { name: 'count', type: 'object', options: ['3', '5', '7'] },
@@ -186,7 +186,7 @@ export const additionalTemplates: ChallengeTemplate[] = [
   {
     id: 'tmpl-extra-4',
     pattern: 'Запечатлейте момент [moment] в вашем дне',
-    category: 'emotions',
+    category: 'mood',
     difficulty: 'easy',
     variables: [
       { name: 'moment', type: 'emotion', options: ['спокойствия', 'радости', 'ожидания', 'движения', 'тишины'] },
@@ -195,7 +195,7 @@ export const additionalTemplates: ChallengeTemplate[] = [
   {
     id: 'tmpl-extra-5',
     pattern: 'Сфотографируйте [subject] с [perspective] перспективы',
-    category: 'architecture',
+    category: 'urban',
     difficulty: 'medium',
     variables: [
       { name: 'subject', type: 'location', options: ['здание', 'лестницу', 'коридор', 'арку', 'мост'] },

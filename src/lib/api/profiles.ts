@@ -385,6 +385,68 @@ export interface UserAchievements {
   favoriteThemeCount: number;
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  xp: number;
+}
+
+/**
+ * Get weekly leaderboard (top users by XP)
+ */
+export async function getLeaderboard(limit = 10): Promise<LeaderboardEntry[]> {
+  if (!isSupabaseConfigured) return [];
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, display_name, avatar_url, xp')
+    .order('xp', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching leaderboard:', error);
+    return [];
+  }
+
+  return (data || []).map((user, index) => ({
+    rank: index + 1,
+    id: user.id,
+    username: user.username,
+    display_name: user.display_name,
+    avatar_url: user.avatar_url,
+    xp: user.xp,
+  }));
+}
+
+/**
+ * Get user's rank in leaderboard
+ */
+export async function getUserRank(): Promise<number | null> {
+  if (!isSupabaseConfigured) return null;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('xp')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile) return null;
+
+  // Count users with more XP
+  const { count } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .gt('xp', profile.xp);
+
+  return (count || 0) + 1;
+}
+
 /**
  * Get user achievements data
  */
