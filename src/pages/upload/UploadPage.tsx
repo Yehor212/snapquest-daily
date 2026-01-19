@@ -153,7 +153,7 @@ export default function UploadPage() {
       const verificationDescription = contextDescription || challenge?.description;
       if (verificationTitle) {
         // Get HF API token from environment
-        const hfToken = import.meta.env.VITE_HUGGINGFACE_TOKEN;
+        const hfToken = import.meta.env.VITE_HUGGINGFACE_API_KEY;
         result = await verifyImage(
           fileForVerification,
           verificationTitle,

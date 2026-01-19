@@ -17,24 +17,7 @@ create table if not exists user_saved_challenges (
 
 -- Enable RLS
 alter table user_saved_challenges enable row level security;
-alter table challenges enable row level security;
-
--- Policies for challenges (allow user-generated)
-create policy "Anyone can view challenges"
-  on challenges for select
-  using (true);
-
-create policy "Users can create challenges"
-  on challenges for insert
-  with check (auth.uid() = creator_id or creator_id is null);
-
-create policy "Users can update own challenges"
-  on challenges for update
-  using (auth.uid() = creator_id);
-
-create policy "Users can delete own challenges"
-  on challenges for delete
-  using (auth.uid() = creator_id);
+-- Note: challenges RLS is defined in 02_rls.sql
 
 -- Policies for user_saved_challenges
 create policy "Users can view own saved challenges"

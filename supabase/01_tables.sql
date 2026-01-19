@@ -1,5 +1,6 @@
 -- =============================================
 -- SNAPQUEST DAILY - TABLES
+-- Порядок создания учитывает зависимости FK
 -- =============================================
 
 -- 1. Профили пользователей
@@ -17,6 +18,7 @@ create table profiles (
 );
 
 -- 2. Челленджи (ежедневные задания)
+-- Примечание: creator_id добавляется в 06_user_saved_challenges.sql
 create table challenges (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -45,7 +47,17 @@ create table events (
   created_at timestamp with time zone default now()
 );
 
--- 4. Фото-охоты
+-- 4. Задания событий (ПЕРЕД photos, т.к. photos ссылается на эту таблицу)
+create table event_challenges (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid references events(id) on delete cascade not null,
+  title text not null,
+  description text,
+  order_num integer default 0,
+  xp_reward integer default 30
+);
+
+-- 5. Фото-охоты
 create table hunts (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -59,7 +71,18 @@ create table hunts (
   created_at timestamp with time zone default now()
 );
 
--- 5. Фотографии
+-- 6. Задания охоты (ПЕРЕД photos, для FK)
+create table hunt_tasks (
+  id uuid primary key default gen_random_uuid(),
+  hunt_id uuid references hunts(id) on delete cascade not null,
+  title text not null,
+  description text,
+  order_num integer default 0,
+  xp_reward integer default 20,
+  hint text
+);
+
+-- 7. Фотографии (после всех таблиц, на которые ссылается)
 create table photos (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references profiles(id) on delete cascade not null,
@@ -69,41 +92,20 @@ create table photos (
   event_id uuid references events(id) on delete set null,
   event_challenge_id uuid references event_challenges(id) on delete set null,
   hunt_id uuid references hunts(id) on delete set null,
-  hunt_task_id uuid,
+  hunt_task_id uuid references hunt_tasks(id) on delete set null,
   filter_applied text,
   likes_count integer default 0,
   xp_earned integer default 0,
   created_at timestamp with time zone default now()
 );
 
--- 6. Задания событий
-create table event_challenges (
-  id uuid primary key default gen_random_uuid(),
-  event_id uuid references events(id) on delete cascade not null,
-  title text not null,
-  description text,
-  order_num integer default 0,
-  xp_reward integer default 30
-);
-
--- 7. Участники событий
+-- 8. Участники событий
 create table event_participants (
   id uuid primary key default gen_random_uuid(),
   event_id uuid references events(id) on delete cascade not null,
   user_id uuid references profiles(id) on delete cascade not null,
   joined_at timestamp with time zone default now(),
   unique(event_id, user_id)
-);
-
--- 8. Задания охоты
-create table hunt_tasks (
-  id uuid primary key default gen_random_uuid(),
-  hunt_id uuid references hunts(id) on delete cascade not null,
-  title text not null,
-  description text,
-  order_num integer default 0,
-  xp_reward integer default 20,
-  hint text
 );
 
 -- 9. Прогресс охоты пользователя
@@ -147,3 +149,17 @@ create table user_badges (
   earned_at timestamp with time zone default now(),
   unique(user_id, badge_id)
 );
+
+-- =============================================
+-- ИНДЕКСЫ для производительности
+-- =============================================
+create index idx_photos_user_id on photos(user_id);
+create index idx_photos_created_at on photos(created_at desc);
+create index idx_photos_challenge_id on photos(challenge_id);
+create index idx_photos_event_id on photos(event_id);
+create index idx_photos_hunt_id on photos(hunt_id);
+create index idx_event_challenges_event_id on event_challenges(event_id);
+create index idx_hunt_tasks_hunt_id on hunt_tasks(hunt_id);
+create index idx_hunt_progress_user_id on hunt_progress(user_id);
+create index idx_photo_likes_photo_id on photo_likes(photo_id);
+create index idx_user_badges_user_id on user_badges(user_id);

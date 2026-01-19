@@ -3,6 +3,7 @@
 -- =============================================
 
 alter table profiles enable row level security;
+alter table challenges enable row level security;
 alter table photos enable row level security;
 alter table events enable row level security;
 alter table event_challenges enable row level security;
@@ -28,6 +29,25 @@ create policy "Users can update own profile"
 create policy "Users can insert own profile"
   on profiles for insert
   with check (auth.uid() = id);
+
+-- =============================================
+-- CHALLENGES
+-- =============================================
+create policy "Anyone can view challenges"
+  on challenges for select
+  using (true);
+
+create policy "Users can create challenges"
+  on challenges for insert
+  with check (auth.uid() = creator_id or creator_id is null);
+
+create policy "Users can update own challenges"
+  on challenges for update
+  using (auth.uid() = creator_id);
+
+create policy "Users can delete own challenges"
+  on challenges for delete
+  using (auth.uid() = creator_id);
 
 -- =============================================
 -- PHOTOS
