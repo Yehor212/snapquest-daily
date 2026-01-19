@@ -5,14 +5,37 @@ import { Button } from "@/components/ui/button";
 import { useCurrentProfile, useUserStats } from "@/hooks/useProfile";
 import { useAuth } from "@/contexts/AuthContext";
 import { EditProfileDialog } from "./EditProfileDialog";
+import { useToast } from "@/hooks/use-toast";
 
 export const ProfileHeader = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const { data: profile, isLoading: profileLoading } = useCurrentProfile();
   const { data: stats, isLoading: statsLoading } = useUserStats(user?.id);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const isLoading = profileLoading || statsLoading;
+
+  const handleShare = async () => {
+    const profileUrl = window.location.href;
+    const shareData = {
+      title: `Профиль ${profile?.display_name || 'пользователя'} в SnapQuest`,
+      text: `Посмотрите мой профиль в SnapQuest! Уровень ${profile?.level || 1}, ${stats?.photosCount || 0} фото`,
+      url: profileUrl,
+    };
+
+    try {
+      if (navigator.share && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(profileUrl);
+        toast({ title: 'Ссылка на профиль скопирована!' });
+      }
+    } catch {
+      await navigator.clipboard.writeText(profileUrl);
+      toast({ title: 'Ссылка на профиль скопирована!' });
+    }
+  };
 
   // Format date
   const formatJoinDate = (dateStr: string | undefined) => {
@@ -120,7 +143,7 @@ export const ProfileHeader = () => {
 
               {/* Actions */}
               <div className="flex items-center gap-3">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={handleShare}>
                   <Share2 className="w-4 h-4" />
                   Поделиться
                 </Button>

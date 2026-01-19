@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
-import { Heart, MessageCircle, Share2, Award, Loader2, ImageIcon } from "lucide-react";
+import { Heart, Share2, Award, Loader2, ImageIcon } from "lucide-react";
 import { useState } from "react";
 import { usePhotoFeed, useLikePhoto, useUnlikePhoto, useHasUserLikedPhoto } from "@/hooks/usePhotos";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface FeedItemProps {
   id: string;
@@ -16,6 +17,7 @@ interface FeedItemProps {
 
 function FeedItem({ id, imageUrl, likesCount, username, avatarUrl, isTop, createdAt }: FeedItemProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const { data: isLiked } = useHasUserLikedPhoto(id);
   const likeMutation = useLikePhoto();
   const unlikeMutation = useUnlikePhoto();
@@ -33,6 +35,26 @@ function FeedItem({ id, imageUrl, likesCount, username, avatarUrl, isTop, create
     } else {
       setOptimisticLiked(true);
       await likeMutation.mutateAsync(id);
+    }
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: `Фото от ${username} в SnapQuest`,
+      text: `Посмотрите это фото в SnapQuest!`,
+      url: imageUrl,
+    };
+
+    try {
+      if (navigator.share && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(imageUrl);
+        toast({ title: 'Ссылка скопирована!' });
+      }
+    } catch {
+      await navigator.clipboard.writeText(imageUrl);
+      toast({ title: 'Ссылка скопирована!' });
     }
   };
 
@@ -116,11 +138,10 @@ function FeedItem({ id, imageUrl, likesCount, username, avatarUrl, isTop, create
                 {displayLikes}
               </span>
             </button>
-            <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <MessageCircle className="w-5 h-5" />
-              <span>0</span>
-            </button>
-            <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors ml-auto">
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors ml-auto"
+            >
               <Share2 className="w-5 h-5" />
             </button>
           </div>
@@ -131,7 +152,9 @@ function FeedItem({ id, imageUrl, likesCount, username, avatarUrl, isTop, create
 }
 
 export const ChallengeFeed = () => {
-  const { data: photos, isLoading } = usePhotoFeed(12);
+  const [limit, setLimit] = useState(12);
+  const { data: photos, isLoading } = usePhotoFeed(limit);
+  const hasMore = photos && photos.length === limit;
 
   return (
     <section className="py-20 bg-secondary/30">
@@ -195,14 +218,17 @@ export const ChallengeFeed = () => {
         )}
 
         {/* Load more */}
-        {!isLoading && photos && photos.length > 0 && (
+        {!isLoading && photos && photos.length > 0 && hasMore && (
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             className="text-center mt-10"
           >
-            <button className="px-6 py-3 rounded-xl border-2 border-border text-muted-foreground font-medium hover:border-primary hover:text-primary transition-colors">
+            <button
+              onClick={() => setLimit(prev => prev + 12)}
+              className="px-6 py-3 rounded-xl border-2 border-border text-muted-foreground font-medium hover:border-primary hover:text-primary transition-colors"
+            >
               Показать ещё
             </button>
           </motion.div>

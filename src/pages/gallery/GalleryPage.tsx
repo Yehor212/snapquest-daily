@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/common';
 import type { PhotoGalleryFilter } from '@/types';
 import { useUserPhotos, usePhotoFeed } from '@/hooks/usePhotos';
 import { useAuth } from '@/contexts/AuthContext';
+import type { Photo, PhotoWithProfile } from '@/lib/api/photos';
 
 export default function GalleryPage() {
   const navigate = useNavigate();
@@ -56,8 +57,8 @@ export default function GalleryPage() {
     });
 
   // Convert Supabase photos to the format expected by PhotoGallery
-  const mapPhotosForGallery = (photos: typeof feedPhotos) => {
-    return (photos || []).map(photo => ({
+  const mapFeedPhotosForGallery = (photos: PhotoWithProfile[]) => {
+    return photos.map(photo => ({
       id: photo.id,
       userId: photo.user_id,
       imageData: photo.image_url,
@@ -70,10 +71,26 @@ export default function GalleryPage() {
       eventId: photo.event_id || undefined,
       huntTaskId: photo.hunt_task_id || undefined,
       filter: photo.filter_applied || undefined,
-      // Include profile data if available (from PhotoWithProfile)
-      username: (photo as any).username || undefined,
-      display_name: (photo as any).display_name || undefined,
-      avatar_url: (photo as any).avatar_url || undefined,
+      username: photo.username || undefined,
+      display_name: photo.display_name || undefined,
+      avatar_url: photo.avatar_url || undefined,
+    }));
+  };
+
+  const mapMyPhotosForGallery = (photos: Photo[]) => {
+    return photos.map(photo => ({
+      id: photo.id,
+      userId: photo.user_id,
+      imageData: photo.image_url,
+      thumbnailData: photo.thumbnail_url || photo.image_url,
+      createdAt: photo.created_at,
+      likes: photo.likes_count,
+      comments: 0,
+      isTop: photo.likes_count >= 10,
+      challengeId: photo.challenge_id || undefined,
+      eventId: photo.event_id || undefined,
+      huntTaskId: photo.hunt_task_id || undefined,
+      filter: photo.filter_applied || undefined,
     }));
   };
 
@@ -117,7 +134,7 @@ export default function GalleryPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                <PhotoGallery photos={mapPhotosForGallery(filteredFeedPhotos)} columns={3} />
+                <PhotoGallery photos={mapFeedPhotosForGallery(filteredFeedPhotos)} columns={3} />
               </motion.div>
             ) : (
               <EmptyState
@@ -146,7 +163,7 @@ export default function GalleryPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                <PhotoGallery photos={mapPhotosForGallery(filteredMyPhotos)} columns={3} />
+                <PhotoGallery photos={mapMyPhotosForGallery(filteredMyPhotos)} columns={3} />
               </motion.div>
             ) : (
               <EmptyState

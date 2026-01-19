@@ -72,6 +72,7 @@ create table photos (
   hunt_task_id uuid,
   filter_applied text,
   likes_count integer default 0,
+  xp_earned integer default 0,
   created_at timestamp with time zone default now()
 );
 

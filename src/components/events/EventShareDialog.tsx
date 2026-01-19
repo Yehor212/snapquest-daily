@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Copy, Check, Share2, QrCode } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Copy, Check, Share2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,12 @@ export function EventShareDialog({
   const [copied, setCopied] = useState(false);
 
   const shareText = `Присоединяйся к событию "${eventName}"!\n\nКод: ${accessCode}\n\nСкачай приложение SnapQuest и введи код.`;
+
+  // Generate QR code URL using free QR API
+  const qrCodeUrl = useMemo(() => {
+    const data = encodeURIComponent(`SNAPQUEST:${accessCode}`);
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${data}&bgcolor=ffffff&color=000000`;
+  }, [accessCode]);
 
   const handleCopyCode = async () => {
     await navigator.clipboard.writeText(accessCode);
@@ -59,12 +65,13 @@ export function EventShareDialog({
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-6 py-4">
-          {/* QR Code placeholder */}
-          <div className="w-48 h-48 rounded-2xl bg-white flex items-center justify-center">
-            <div className="text-center">
-              <QrCode className="w-24 h-24 text-black mx-auto mb-2" />
-              <p className="text-xs text-black/50">QR-код</p>
-            </div>
+          {/* QR Code - generated via free API */}
+          <div className="w-48 h-48 rounded-2xl bg-white flex items-center justify-center overflow-hidden">
+            <img
+              src={qrCodeUrl}
+              alt={`QR код для события: ${accessCode}`}
+              className="w-full h-full object-contain"
+            />
           </div>
 
           {/* Access Code */}

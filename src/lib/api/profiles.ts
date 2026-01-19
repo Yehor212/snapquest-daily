@@ -224,19 +224,21 @@ export async function getWeeklyActivity(): Promise<WeeklyActivity[]> {
   const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
   const weekActivity: WeeklyActivity[] = [];
 
-  // Fetch photos for this week
+  // Fetch photos for this week with real xp_earned
   const { data: photos } = await supabase
     .from('photos')
-    .select('created_at, challenge_id')
+    .select('created_at, xp_earned')
     .eq('user_id', user.id)
     .gte('created_at', monday.toISOString())
     .order('created_at', { ascending: true });
 
-  // Create activity map by date
+  // Create activity map by date using real XP values
   const activityMap = new Map<string, number>();
   (photos || []).forEach(photo => {
     const date = new Date(photo.created_at).toISOString().split('T')[0];
-    activityMap.set(date, (activityMap.get(date) || 0) + 50); // 50 XP per photo
+    // Use real xp_earned, fallback to 50 for legacy photos without xp_earned
+    const xp = photo.xp_earned || 50;
+    activityMap.set(date, (activityMap.get(date) || 0) + xp);
   });
 
   // Build week data
@@ -349,6 +351,7 @@ export async function getUserPhotosWithChallenges(limit = 10): Promise<PhotoWith
       thumbnail_url,
       created_at,
       likes_count,
+      xp_earned,
       challenge_id,
       challenges(title)
     `)
@@ -369,7 +372,7 @@ export async function getUserPhotosWithChallenges(limit = 10): Promise<PhotoWith
     likes_count: photo.likes_count,
     challenge_id: photo.challenge_id,
     challenge_title: (photo.challenges as any)?.title || null,
-    xp_earned: photo.likes_count >= 10 ? 100 : 50, // Bonus XP for popular photos
+    xp_earned: photo.xp_earned || 50, // Fallback for legacy photos
   }));
 }
 

@@ -7,6 +7,7 @@ import {
   unlikePhoto,
   hasUserLikedPhoto,
   deletePhoto,
+  getGlobalStats,
   Photo,
 } from '@/lib/api/photos';
 
@@ -69,6 +70,7 @@ export function useUploadPhoto() {
         huntId?: string;
         huntTaskId?: string;
         filter?: string;
+        xpEarned?: number;
       };
     }) => uploadPhoto(file, options),
     onSuccess: () => {
@@ -122,5 +124,16 @@ export function useDeletePhoto() {
       queryClient.invalidateQueries({ queryKey: photoKeys.all });
       queryClient.invalidateQueries({ queryKey: ['profile'] });
     },
+  });
+}
+
+/**
+ * Hook to get global stats for home page
+ */
+export function useGlobalStats() {
+  return useQuery({
+    queryKey: ['globalStats'],
+    queryFn: getGlobalStats,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

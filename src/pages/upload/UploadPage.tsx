@@ -190,6 +190,7 @@ export default function UploadPage() {
           huntId: huntId || undefined,
           huntTaskId: huntTaskId || undefined,
           filter: editOptions.filter !== 'none' ? editOptions.filter : undefined,
+          xpEarned: contextXp,
         },
       });
 

@@ -1,36 +1,45 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Calendar, Map, Users, Sparkles, ChevronRight, Wand2 } from "lucide-react";
-
-const modes = [
-  {
-    icon: Calendar,
-    title: "Daily Challenge",
-    description: "Одно задание каждый день для всех. Выполняй и смотри, как другие интерпретируют тему",
-    color: "from-primary to-primary/60",
-    stats: "127 заданий выполнено",
-    link: "/upload",
-  },
-  {
-    icon: Map,
-    title: "Фото-охота",
-    description: "Список из N заданий на день или неделю. Идеально для путешествий и прогулок",
-    color: "from-accent to-accent/60",
-    stats: "12 активных охот",
-    link: "/hunts",
-  },
-  {
-    icon: Users,
-    title: "Социальные челленджи",
-    description: "Создавай приватные игры для друзей, свадеб, тимбилдингов и вечеринок",
-    color: "from-gold to-gold/60",
-    stats: "3,500+ мероприятий",
-    link: "/events",
-  },
-];
+import { useGlobalStats } from "@/hooks/usePhotos";
 
 export const GameModes = () => {
   const navigate = useNavigate();
+  const { data: stats } = useGlobalStats();
+
+  const formatNumber = (num: number) => {
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    }
+    return num.toString();
+  };
+
+  const modes = [
+    {
+      icon: Calendar,
+      title: "Daily Challenge",
+      description: "Одно задание каждый день для всех. Выполняй и смотри, как другие интерпретируют тему",
+      color: "from-primary to-primary/60",
+      stats: `${formatNumber(stats?.totalPhotos || 0)} фото загружено`,
+      link: "/upload",
+    },
+    {
+      icon: Map,
+      title: "Фото-охота",
+      description: "Список из N заданий на день или неделю. Идеально для путешествий и прогулок",
+      color: "from-accent to-accent/60",
+      stats: `${stats?.activeHunts || 0} активных охот`,
+      link: "/hunts",
+    },
+    {
+      icon: Users,
+      title: "Социальные челленджи",
+      description: "Создавай приватные игры для друзей, свадеб, тимбилдингов и вечеринок",
+      color: "from-gold to-gold/60",
+      stats: `${formatNumber(stats?.totalEvents || 0)} мероприятий`,
+      link: "/events",
+    },
+  ];
 
   return (
     <section className="py-20">

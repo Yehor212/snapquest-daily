@@ -11,7 +11,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { AccessCodeInput } from '@/components/common';
 import type { Event } from '@/lib/api/events';
-import { useJoinEvent } from '@/hooks/useEvents';
 import { joinEventByCode } from '@/lib/api/events';
 
 interface JoinEventDialogProps {
@@ -25,7 +24,6 @@ export function JoinEventDialog({ open, onOpenChange, onJoin }: JoinEventDialogP
   const [error, setError] = useState<string | null>(null);
   const [foundEvent, setFoundEvent] = useState<Event | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const joinEventMutation = useJoinEvent();
 
   const handleCodeChange = (newCode: string) => {
     setCode(newCode);
@@ -128,23 +126,14 @@ export function JoinEventDialog({ open, onOpenChange, onJoin }: JoinEventDialogP
             </motion.div>
           )}
 
-          {/* Join button */}
+          {/* Join button - user is already joined via RPC when event is found */}
           <Button
             onClick={handleJoin}
-            disabled={!foundEvent || joinEventMutation.isPending}
+            disabled={!foundEvent}
             className="w-full gap-2"
           >
-            {joinEventMutation.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Присоединение...
-              </>
-            ) : (
-              <>
-                Присоединиться
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
+            Перейти к событию
+            <ArrowRight className="w-4 h-4" />
           </Button>
         </div>
       </DialogContent>

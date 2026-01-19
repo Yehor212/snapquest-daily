@@ -12,6 +12,7 @@ export interface Photo {
   event_challenge_id: string | null;
   filter_applied: string | null;
   likes_count: number;
+  xp_earned: number;
   created_at: string;
 }
 
@@ -33,6 +34,7 @@ export async function uploadPhoto(
     huntId?: string;
     huntTaskId?: string;
     filter?: string;
+    xpEarned?: number;
   }
 ): Promise<Photo | null> {
   if (!isSupabaseConfigured) return null;
@@ -71,6 +73,7 @@ export async function uploadPhoto(
       hunt_id: options?.huntId || null,
       hunt_task_id: options?.huntTaskId || null,
       filter_applied: options?.filter || null,
+      xp_earned: options?.xpEarned || 0,
     })
     .select()
     .single();
@@ -243,4 +246,29 @@ export async function deletePhoto(photoId: string): Promise<boolean> {
   }
 
   return true;
+}
+
+/**
+ * Get global stats for home page
+ */
+export async function getGlobalStats(): Promise<{
+  totalPhotos: number;
+  activeHunts: number;
+  totalEvents: number;
+}> {
+  if (!isSupabaseConfigured) {
+    return { totalPhotos: 0, activeHunts: 0, totalEvents: 0 };
+  }
+
+  const [photosResult, huntsResult, eventsResult] = await Promise.all([
+    supabase.from('photos').select('*', { count: 'exact', head: true }),
+    supabase.from('hunts').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+    supabase.from('events').select('*', { count: 'exact', head: true }),
+  ]);
+
+  return {
+    totalPhotos: photosResult.count || 0,
+    activeHunts: huntsResult.count || 0,
+    totalEvents: eventsResult.count || 0,
+  };
 }

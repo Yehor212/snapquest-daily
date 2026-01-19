@@ -79,30 +79,42 @@ $$ language plpgsql security definer;
 create or replace function update_user_streak(user_uuid uuid)
 returns void as $$
 declare
-  last_photo_date date;
+  prev_photo_date date;
+  photos_today integer;
   current_streak integer;
   longest integer;
 begin
-  -- Get last photo date
-  select date(created_at) into last_photo_date
+  -- Get current streak and longest (with NULL protection)
+  select coalesce(streak, 0), coalesce(longest_streak, 0)
+  into current_streak, longest
+  from profiles where id = user_uuid;
+
+  -- Count photos uploaded today
+  select count(*) into photos_today
   from photos
-  where user_id = user_uuid
+  where user_id = user_uuid and date(created_at) = current_date;
+
+  -- If more than 1 photo today, streak already updated - skip
+  if photos_today > 1 then
+    return;
+  end if;
+
+  -- Get the most recent photo date BEFORE today
+  select date(created_at) into prev_photo_date
+  from photos
+  where user_id = user_uuid and date(created_at) < current_date
   order by created_at desc
   limit 1;
 
-  -- Get current streak
-  select streak, longest_streak into current_streak, longest
-  from profiles where id = user_uuid;
-
-  -- If photo was yesterday, increment streak
-  if last_photo_date = current_date - interval '1 day' then
+  -- Determine new streak value
+  if prev_photo_date is null then
+    -- No previous photos before today → first day, streak = 1
+    current_streak := 1;
+  elsif prev_photo_date = current_date - interval '1 day' then
+    -- Photo yesterday → continue streak
     current_streak := current_streak + 1;
-  -- If photo was today, keep streak
-  elsif last_photo_date = current_date then
-    -- do nothing
-    null;
-  -- Otherwise reset streak
   else
+    -- Gap in uploads → reset streak to 1
     current_streak := 1;
   end if;
 
