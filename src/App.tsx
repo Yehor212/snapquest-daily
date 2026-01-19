@@ -21,7 +21,21 @@ const EventsPage = lazy(() => import("./pages/events/EventsPage"));
 const EventDetailPage = lazy(() => import("./pages/events/EventDetailPage"));
 const CreateEventPage = lazy(() => import("./pages/events/CreateEventPage"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000,
+      // Don't throw errors - let components handle loading/error states
+      throwOnError: false,
+    },
+    mutations: {
+      retry: 0,
+      throwOnError: false,
+    },
+  },
+});
 
 function PageLoader() {
   return (

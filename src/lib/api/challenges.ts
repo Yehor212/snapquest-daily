@@ -19,31 +19,36 @@ export interface Challenge {
 export async function getDailyChallenge(): Promise<Challenge | null> {
   if (!isSupabaseConfigured) return null;
 
-  // Get challenge based on day of year
-  const dayOfYear = Math.floor(
-    (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
-  );
-  const dayNumber = (dayOfYear % 10) + 1; // Cycle through 10 challenges
+  try {
+    // Get challenge based on day of year
+    const dayOfYear = Math.floor(
+      (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
+    );
+    const dayNumber = (dayOfYear % 10) + 1; // Cycle through 10 challenges
 
-  const { data, error } = await supabase
-    .from('challenges')
-    .select('*')
-    .eq('is_daily', true)
-    .eq('day_number', dayNumber)
-    .single();
-
-  if (error) {
-    // Fallback to any daily challenge
-    const { data: fallback } = await supabase
+    const { data, error } = await supabase
       .from('challenges')
       .select('*')
       .eq('is_daily', true)
-      .limit(1)
+      .eq('day_number', dayNumber)
       .single();
-    return fallback;
-  }
 
-  return data;
+    if (error) {
+      // Fallback to any daily challenge
+      const { data: fallback } = await supabase
+        .from('challenges')
+        .select('*')
+        .eq('is_daily', true)
+        .limit(1)
+        .single();
+      return fallback;
+    }
+
+    return data;
+  } catch (error) {
+    console.warn('Network error fetching daily challenge:', error);
+    return null;
+  }
 }
 
 /**
@@ -52,17 +57,22 @@ export async function getDailyChallenge(): Promise<Challenge | null> {
 export async function getAllChallenges(): Promise<Challenge[]> {
   if (!isSupabaseConfigured) return [];
 
-  const { data, error } = await supabase
-    .from('challenges')
-    .select('*')
-    .order('day_number', { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from('challenges')
+      .select('*')
+      .order('day_number', { ascending: true });
 
-  if (error) {
-    console.error('Error fetching challenges:', error);
+    if (error) {
+      console.error('Error fetching challenges:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.warn('Network error fetching challenges:', error);
     return [];
   }
-
-  return data || [];
 }
 
 /**
@@ -71,17 +81,22 @@ export async function getAllChallenges(): Promise<Challenge[]> {
 export async function getChallengesByCategory(category: string): Promise<Challenge[]> {
   if (!isSupabaseConfigured) return [];
 
-  const { data, error } = await supabase
-    .from('challenges')
-    .select('*')
-    .eq('category', category);
+  try {
+    const { data, error } = await supabase
+      .from('challenges')
+      .select('*')
+      .eq('category', category);
 
-  if (error) {
-    console.error('Error fetching challenges:', error);
+    if (error) {
+      console.error('Error fetching challenges:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.warn('Network error fetching challenges by category:', error);
     return [];
   }
-
-  return data || [];
 }
 
 /**
@@ -90,14 +105,19 @@ export async function getChallengesByCategory(category: string): Promise<Challen
 export async function getTodayCompletionsCount(): Promise<number> {
   if (!isSupabaseConfigured) return 0;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  const { count } = await supabase
-    .from('photos')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', today.toISOString())
-    .not('challenge_id', 'is', null);
+    const { count } = await supabase
+      .from('photos')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', today.toISOString())
+      .not('challenge_id', 'is', null);
 
-  return count || 0;
+    return count || 0;
+  } catch (error) {
+    console.warn('Network error fetching today completions:', error);
+    return 0;
+  }
 }

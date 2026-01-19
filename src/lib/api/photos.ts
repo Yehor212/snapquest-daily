@@ -89,27 +89,32 @@ export async function uploadPhoto(
 export async function getUserPhotos(userId?: string): Promise<Photo[]> {
   if (!isSupabaseConfigured) return [];
 
-  let query = supabase
-    .from('photos')
-    .select('*')
-    .order('created_at', { ascending: false });
+  try {
+    let query = supabase
+      .from('photos')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-  if (userId) {
-    query = query.eq('user_id', userId);
-  } else {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
-    query = query.eq('user_id', user.id);
-  }
+    if (userId) {
+      query = query.eq('user_id', userId);
+    } else {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      query = query.eq('user_id', user.id);
+    }
 
-  const { data, error } = await query;
+    const { data, error } = await query;
 
-  if (error) {
-    console.error('Error fetching photos:', error);
+    if (error) {
+      console.error('Error fetching photos:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.warn('Network error fetching user photos:', error);
     return [];
   }
-
-  return data || [];
 }
 
 /**
@@ -118,35 +123,40 @@ export async function getUserPhotos(userId?: string): Promise<Photo[]> {
 export async function getPhotoFeed(limit = 20, offset = 0): Promise<PhotoWithProfile[]> {
   if (!isSupabaseConfigured) return [];
 
-  const { data, error } = await supabase
-    .from('photos')
-    .select(`
-      *,
-      profiles:user_id (
-        username,
-        display_name,
-        avatar_url
-      )
-    `)
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+  try {
+    const { data, error } = await supabase
+      .from('photos')
+      .select(`
+        *,
+        profiles:user_id (
+          username,
+          display_name,
+          avatar_url
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
-  if (error) {
-    console.error('Error fetching photo feed:', error);
+    if (error) {
+      console.error('Error fetching photo feed:', error);
+      return [];
+    }
+
+    // Map to PhotoWithProfile
+    return (data || []).map(photo => {
+      const profile = photo.profiles as any;
+      return {
+        ...photo,
+        username: profile?.username || null,
+        display_name: profile?.display_name || null,
+        avatar_url: profile?.avatar_url || null,
+        profiles: undefined, // Remove nested object
+      };
+    });
+  } catch (error) {
+    console.warn('Network error fetching photo feed:', error);
     return [];
   }
-
-  // Map to PhotoWithProfile
-  return (data || []).map(photo => {
-    const profile = photo.profiles as any;
-    return {
-      ...photo,
-      username: profile?.username || null,
-      display_name: profile?.display_name || null,
-      avatar_url: profile?.avatar_url || null,
-      profiles: undefined, // Remove nested object
-    };
-  });
 }
 
 /**
