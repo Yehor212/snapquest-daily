@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -34,9 +35,13 @@ export function LoginButton() {
   if (isAuthenticated && user) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground hidden sm:inline">
-          {user.email?.split('@')[0]}
-        </span>
+        <Link
+          to="/profile"
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <User className="w-4 h-4" />
+          <span className="hidden sm:inline">{user.email?.split('@')[0]}</span>
+        </Link>
         <Button variant="ghost" size="sm" onClick={() => signOut()}>
           <LogOut className="w-4 h-4 mr-2" />
           Выйти
