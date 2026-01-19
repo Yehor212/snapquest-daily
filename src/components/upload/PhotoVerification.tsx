@@ -30,12 +30,12 @@ export function PhotoVerification({
     setResult(null);
 
     try {
-      const hfToken = import.meta.env.VITE_HUGGINGFACE_API_KEY || import.meta.env.VITE_HF_API_KEY;
+      // AI verification disabled - API key cannot be safely exposed in frontend
       const verificationResult = await verifyImage(
         imageFile,
         challengeTitle,
         challengeDescription,
-        hfToken || undefined
+        undefined // No API key - verification will accept all photos
       );
 
       setResult(verificationResult);

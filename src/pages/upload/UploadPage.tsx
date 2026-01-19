@@ -164,13 +164,13 @@ export default function UploadPage() {
       const verificationTitle = contextTitle || challenge?.title || customChallengeTitle;
       const verificationDescription = contextDescription || challenge?.description;
       if (verificationTitle) {
-        // Get HF API token from environment
-        const hfToken = import.meta.env.VITE_HUGGINGFACE_API_KEY || import.meta.env.VITE_HF_API_KEY;
+        // AI verification disabled for security (API key cannot be safely exposed in frontend)
+        // In production, this would require a backend proxy
         result = await verifyImage(
           fileForVerification,
           verificationTitle,
           verificationDescription || undefined,
-          hfToken || undefined
+          undefined // No API key - verification will be skipped
         );
       }
 
