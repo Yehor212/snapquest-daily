@@ -197,5 +197,8 @@ begin
 
   -- Add XP to user
   perform add_user_xp(auth.uid(), task_xp);
+
+  -- Update user streak
+  perform update_user_streak(auth.uid());
 end;
 $$ language plpgsql security definer;

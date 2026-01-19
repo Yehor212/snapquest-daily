@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, History, Lightbulb, Sparkles } from 'lucide-react';
+import { ArrowLeft, History, Lightbulb, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -11,23 +11,56 @@ import {
 } from '@/components/generator';
 import { EmptyState } from '@/components/common';
 import type { GeneratedChallenge, ChallengeCategory, Difficulty } from '@/types';
-import { mockTemplates } from '@/data/mockData';
-import { additionalTemplates, generateChallenge, filterTemplates } from '@/lib/challengeGenerator';
-import { saveChallenge, getSavedChallenges, removeSavedChallenge } from '@/lib/storage';
+import { challengeTemplates, additionalTemplates, generateChallenge, filterTemplates } from '@/lib/challengeGenerator';
 import { useToast } from '@/hooks/use-toast';
+import { useSavedChallenges, useCreateAndSaveChallenge, useUnsaveChallenge } from '@/hooks/useChallenges';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Challenge } from '@/lib/api/challenges';
 
-const allTemplates = [...mockTemplates, ...additionalTemplates];
+// Use templates from challengeGenerator (no mockData dependency)
+const allTemplates = [...challengeTemplates, ...additionalTemplates];
+
+// Convert DB Challenge to GeneratedChallenge format for UI
+function dbChallengeToGenerated(challenge: Challenge): GeneratedChallenge {
+  return {
+    id: challenge.id,
+    templateId: 'db-saved',
+    title: challenge.title,
+    description: challenge.description || challenge.title,
+    variables: {},
+    category: (challenge.category || 'creative') as ChallengeCategory,
+    difficulty: challenge.difficulty,
+    xpReward: challenge.xp_reward,
+    generatedAt: challenge.created_at,
+    isSaved: true,
+  };
+}
 
 export default function GeneratorPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [category, setCategory] = useState<ChallengeCategory | 'all'>('all');
   const [difficulty, setDifficulty] = useState<Difficulty | 'all'>('all');
   const [currentChallenge, setCurrentChallenge] = useState<GeneratedChallenge | null>(null);
-  const [savedChallenges, setSavedChallenges] = useState<GeneratedChallenge[]>(getSavedChallenges);
   const [history, setHistory] = useState<GeneratedChallenge[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Supabase hooks for saved challenges
+  const { data: dbSavedChallenges, isLoading: savedLoading } = useSavedChallenges();
+  const createAndSave = useCreateAndSaveChallenge();
+  const unsave = useUnsaveChallenge();
+
+  // Convert DB challenges to GeneratedChallenge format
+  const savedChallenges = useMemo(() => {
+    return (dbSavedChallenges || []).map(dbChallengeToGenerated);
+  }, [dbSavedChallenges]);
+
+  // Track which challenges are saved (by title for locally generated, by id for DB)
+  const savedTitles = useMemo(() => {
+    return new Set(savedChallenges.map(c => c.title));
+  }, [savedChallenges]);
 
   const handleGenerate = useCallback(() => {
     setIsGenerating(true);
@@ -54,22 +87,64 @@ export default function GeneratorPage() {
     }, 400);
   }, [category, difficulty, currentChallenge]);
 
-  const handleSave = (challenge: GeneratedChallenge) => {
-    const isSaved = savedChallenges.some(c => c.id === challenge.id);
+  const handleSave = async (challenge: GeneratedChallenge) => {
+    if (!user) {
+      toast({ title: 'Войдите, чтобы сохранять челленджи', variant: 'destructive' });
+      return;
+    }
 
-    if (isSaved) {
-      removeSavedChallenge(challenge.id);
-      setSavedChallenges(prev => prev.filter(c => c.id !== challenge.id));
-      toast({ title: 'Удалено из сохранённых' });
+    // Check if already saved (by title for new challenges, by id for DB challenges)
+    const isSavedByTitle = savedTitles.has(challenge.title);
+    const dbChallenge = dbSavedChallenges?.find(c => c.title === challenge.title);
+
+    if (isSavedByTitle && dbChallenge) {
+      // Unsave
+      try {
+        await unsave.mutateAsync(dbChallenge.id);
+        toast({ title: 'Удалено из сохранённых' });
+      } catch {
+        toast({ title: 'Ошибка при удалении', variant: 'destructive' });
+      }
     } else {
-      saveChallenge(challenge);
-      setSavedChallenges(prev => [{ ...challenge, isSaved: true }, ...prev]);
-      toast({ title: 'Сохранено!' });
+      // Save new challenge to DB
+      try {
+        await createAndSave.mutateAsync({
+          title: challenge.title,
+          description: challenge.description,
+          category: challenge.category,
+          difficulty: challenge.difficulty,
+          xp_reward: challenge.xpReward,
+        });
+        toast({ title: 'Сохранено!' });
+      } catch {
+        toast({ title: 'Ошибка при сохранении', variant: 'destructive' });
+      }
+    }
+  };
+
+  const handleUnsave = async (challenge: GeneratedChallenge) => {
+    if (!user) return;
+
+    const dbChallenge = dbSavedChallenges?.find(c => c.id === challenge.id || c.title === challenge.title);
+    if (dbChallenge) {
+      try {
+        await unsave.mutateAsync(dbChallenge.id);
+        toast({ title: 'Удалено из сохранённых' });
+      } catch {
+        toast({ title: 'Ошибка при удалении', variant: 'destructive' });
+      }
     }
   };
 
   const handleUse = (challenge: GeneratedChallenge) => {
-    navigate(`/upload?challenge=${challenge.id}`);
+    // For DB-saved challenges, use the DB id; for local, use title as identifier
+    const dbChallenge = dbSavedChallenges?.find(c => c.title === challenge.title);
+    if (dbChallenge) {
+      navigate(`/upload?challenge=${dbChallenge.id}`);
+    } else {
+      // For newly generated challenges not yet in DB, pass title as query
+      navigate(`/upload?challengeTitle=${encodeURIComponent(challenge.title)}&xp=${challenge.xpReward}`);
+    }
   };
 
   const handleShare = async (challenge: GeneratedChallenge) => {
@@ -86,8 +161,7 @@ export default function GeneratorPage() {
     }
   };
 
-  const isSaved = (challengeId: string) =>
-    savedChallenges.some(c => c.id === challengeId);
+  const isSaved = (challenge: GeneratedChallenge) => savedTitles.has(challenge.title);
 
   return (
     <div className="min-h-screen bg-background">
@@ -149,7 +223,7 @@ export default function GeneratorPage() {
               onSave={() => handleSave(currentChallenge)}
               onShare={() => handleShare(currentChallenge)}
               onRegenerate={handleGenerate}
-              isSaved={isSaved(currentChallenge.id)}
+              isSaved={isSaved(currentChallenge)}
             />
           )}
         </AnimatePresence>
@@ -203,13 +277,23 @@ export default function GeneratorPage() {
           </TabsContent>
 
           <TabsContent value="saved" className="mt-4 space-y-4">
-            {savedChallenges.length > 0 ? (
+            {savedLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : !user ? (
+              <EmptyState
+                icon={Lightbulb}
+                title="Войдите в аккаунт"
+                description="Чтобы сохранять челленджи, необходимо войти в аккаунт"
+              />
+            ) : savedChallenges.length > 0 ? (
               savedChallenges.map((challenge) => (
                 <GeneratedChallengeCard
                   key={challenge.id}
                   challenge={challenge}
                   onUse={() => handleUse(challenge)}
-                  onSave={() => handleSave(challenge)}
+                  onSave={() => handleUnsave(challenge)}
                   isSaved={true}
                 />
               ))

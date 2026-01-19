@@ -27,6 +27,7 @@ export interface Badge {
   name: string;
   description: string;
   icon: string;
+  color: string;
   category: string;
   requirement_type: string;
   requirement_value: number;
@@ -124,33 +125,50 @@ export async function updateProfile(updates: Partial<Profile>): Promise<Profile 
 }
 
 /**
- * Add XP to user
+ * Add XP to user using atomic RPC
  */
 export async function addXp(amount: number): Promise<Profile | null> {
   if (!isSupabaseConfigured) return null;
 
-  const profile = await getCurrentProfile();
-  if (!profile) return null;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
 
-  const newXp = profile.xp + amount;
-  const newLevel = Math.floor(newXp / 100) + 1;
+  // Use atomic RPC to add XP
+  const { error } = await supabase.rpc('add_user_xp', {
+    user_uuid: user.id,
+    xp_amount: amount,
+  });
 
-  return updateProfile({ xp: newXp, level: newLevel });
+  if (error) {
+    console.error('Error adding XP via RPC:', error);
+    return null;
+  }
+
+  // Return updated profile
+  return getCurrentProfile();
 }
 
 /**
- * Update user streak
+ * Update user streak using atomic RPC
  */
 export async function updateStreak(): Promise<Profile | null> {
   if (!isSupabaseConfigured) return null;
 
-  const profile = await getCurrentProfile();
-  if (!profile) return null;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
 
-  const newStreak = profile.streak + 1;
-  const longestStreak = Math.max(newStreak, profile.longest_streak);
+  // Use atomic RPC to update streak
+  const { error } = await supabase.rpc('update_user_streak', {
+    user_uuid: user.id,
+  });
 
-  return updateProfile({ streak: newStreak, longest_streak: longestStreak });
+  if (error) {
+    console.error('Error updating streak via RPC:', error);
+    return null;
+  }
+
+  // Return updated profile
+  return getCurrentProfile();
 }
 
 export interface UserStats {

@@ -49,7 +49,7 @@ export async function createEvent(
   name: string,
   eventType: Event['event_type'],
   description?: string,
-  challenges?: { title: string; description?: string }[]
+  challenges?: { title: string; description?: string; xpReward?: number }[]
 ): Promise<Event | null> {
   if (!isSupabaseConfigured) return null;
 
@@ -88,7 +88,7 @@ export async function createEvent(
       title: c.title,
       description: c.description,
       order_num: index,
-      xp_reward: 30,
+      xp_reward: c.xpReward || 30,
     }));
 
     await supabase.from('event_challenges').insert(challengeRecords);
@@ -97,10 +97,15 @@ export async function createEvent(
   return event;
 }
 
+export interface EventWithCounts extends Event {
+  participants_count: number;
+  challenges_count: number;
+}
+
 /**
- * Get user's events (created + participating)
+ * Get user's events (created + participating) with counts
  */
-export async function getUserEvents(): Promise<Event[]> {
+export async function getUserEvents(): Promise<EventWithCounts[]> {
   if (!isSupabaseConfigured) return [];
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -114,6 +119,8 @@ export async function getUserEvents(): Promise<Event[]> {
 
   const eventIds = participations?.map(p => p.event_id) || [];
 
+  let events: Event[] = [];
+
   if (eventIds.length === 0) {
     // Just get created events
     const { data } = await supabase
@@ -121,21 +128,44 @@ export async function getUserEvents(): Promise<Event[]> {
       .select('*')
       .eq('creator_id', user.id)
       .order('created_at', { ascending: false });
-    return data || [];
+    events = data || [];
+  } else {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .in('id', eventIds)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching events:', error);
+      return [];
+    }
+    events = data || [];
   }
 
-  const { data, error } = await supabase
-    .from('events')
-    .select('*')
-    .in('id', eventIds)
-    .order('created_at', { ascending: false });
+  // Fetch counts for each event
+  const eventsWithCounts: EventWithCounts[] = await Promise.all(
+    events.map(async (event) => {
+      const [participantsResult, challengesResult] = await Promise.all([
+        supabase
+          .from('event_participants')
+          .select('*', { count: 'exact', head: true })
+          .eq('event_id', event.id),
+        supabase
+          .from('event_challenges')
+          .select('*', { count: 'exact', head: true })
+          .eq('event_id', event.id),
+      ]);
 
-  if (error) {
-    console.error('Error fetching events:', error);
-    return [];
-  }
+      return {
+        ...event,
+        participants_count: participantsResult.count || 0,
+        challenges_count: challengesResult.count || 0,
+      };
+    })
+  );
 
-  return data || [];
+  return eventsWithCounts;
 }
 
 /**
@@ -165,7 +195,7 @@ export async function getEventDetails(eventId: string) {
 }
 
 /**
- * Join event by access code
+ * Join event by access code using RPC (bypasses RLS for initial lookup)
  */
 export async function joinEventByCode(code: string): Promise<Event | null> {
   if (!isSupabaseConfigured) return null;
@@ -173,26 +203,29 @@ export async function joinEventByCode(code: string): Promise<Event | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Find event
-  const { data: event, error: findError } = await supabase
-    .from('events')
-    .select('*')
-    .eq('access_code', code.toUpperCase())
-    .eq('status', 'active')
-    .single();
+  // Use RPC to join event (handles RLS bypass for lookup)
+  const { data: eventId, error: rpcError } = await supabase
+    .rpc('join_event_by_code', { code: code.toUpperCase() });
 
-  if (findError || !event) {
-    console.error('Event not found:', findError);
+  if (rpcError) {
+    console.error('Error joining event:', rpcError);
     return null;
   }
 
-  // Add participant
-  const { error: joinError } = await supabase
-    .from('event_participants')
-    .insert({ event_id: event.id, user_id: user.id });
+  if (!eventId) {
+    console.error('Event not found or inactive');
+    return null;
+  }
 
-  if (joinError && joinError.code !== '23505') { // Already joined is ok
-    console.error('Error joining event:', joinError);
+  // Now fetch the event (RLS allows after participant insert)
+  const { data: event, error: fetchError } = await supabase
+    .from('events')
+    .select('*')
+    .eq('id', eventId)
+    .single();
+
+  if (fetchError || !event) {
+    console.error('Error fetching event after join:', fetchError);
     return null;
   }
 

@@ -115,6 +115,8 @@ export default function EventsPage() {
                     >
                       <EventCard
                         event={event}
+                        participantsCount={event.participants_count}
+                        challengesCount={event.challenges_count}
                         onClick={() => handleEventClick(event.id)}
                       />
                     </motion.div>
@@ -139,6 +141,8 @@ export default function EventsPage() {
                     >
                       <EventCard
                         event={event}
+                        participantsCount={event.participants_count}
+                        challengesCount={event.challenges_count}
                         onClick={() => handleEventClick(event.id)}
                       />
                     </motion.div>
@@ -163,6 +167,8 @@ export default function EventsPage() {
                     >
                       <EventCard
                         event={event}
+                        participantsCount={event.participants_count}
+                        challengesCount={event.challenges_count}
                         onClick={() => handleEventClick(event.id)}
                       />
                     </motion.div>

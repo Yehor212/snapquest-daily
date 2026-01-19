@@ -3,6 +3,7 @@ import {
   getCurrentProfile,
   updateProfile,
   addXp,
+  updateStreak,
   getUserStats,
   getWeeklyActivity,
   getUserBadges,
@@ -74,6 +75,23 @@ export function useAddXp() {
       if (data) {
         queryClient.setQueryData(profileKeys.current(), data);
         // Also invalidate stats
+        queryClient.invalidateQueries({ queryKey: profileKeys.all });
+      }
+    },
+  });
+}
+
+/**
+ * Hook to update user streak
+ */
+export function useUpdateStreak() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => updateStreak(),
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.setQueryData(profileKeys.current(), data);
         queryClient.invalidateQueries({ queryKey: profileKeys.all });
       }
     },

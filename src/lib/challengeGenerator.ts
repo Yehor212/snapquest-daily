@@ -1,5 +1,11 @@
 import type { ChallengeTemplate, GeneratedChallenge, Difficulty } from '@/types';
-import { generateId } from './storage';
+
+/**
+ * Generate a unique ID
+ */
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
 
 /**
  * Генерирует случайное значение из массива
@@ -7,6 +13,62 @@ import { generateId } from './storage';
 function randomFrom<T>(array: T[]): T {
   return array[Math.floor(Math.random() * array.length)];
 }
+
+/**
+ * Base challenge templates
+ */
+export const challengeTemplates: ChallengeTemplate[] = [
+  {
+    id: 'tmpl-1',
+    pattern: 'Найдите [object] и сфотографируйте в [style]',
+    category: 'creative',
+    difficulty: 'easy',
+    variables: [
+      { name: 'object', type: 'object', options: ['красный предмет', 'круглый объект', 'что-то блестящее', 'старинную вещь', 'симметричный объект'] },
+      { name: 'style', type: 'style', options: ['минималистичном стиле', 'макро', 'с необычного ракурса', 'на закате', 'с размытым фоном'] },
+    ],
+  },
+  {
+    id: 'tmpl-2',
+    pattern: 'Создайте фото с настроением "[emotion]" используя [color] цвет',
+    category: 'emotions',
+    difficulty: 'medium',
+    variables: [
+      { name: 'emotion', type: 'emotion', options: ['спокойствие', 'радость', 'меланхолия', 'энергия', 'загадочность'] },
+      { name: 'color', type: 'color', options: ['синий', 'жёлтый', 'красный', 'зелёный', 'чёрно-белый'] },
+    ],
+  },
+  {
+    id: 'tmpl-3',
+    pattern: 'Сфотографируйте [location] в [time]',
+    category: 'urban',
+    difficulty: 'hard',
+    variables: [
+      { name: 'location', type: 'location', options: ['улицу', 'парк', 'здание', 'мост', 'площадь'] },
+      { name: 'time', type: 'time', options: ['золотой час', 'синий час', 'полдень', 'ночью', 'во время дождя'] },
+    ],
+  },
+  {
+    id: 'tmpl-4',
+    pattern: 'Покажите [object] с точки зрения [angle]',
+    category: 'creative',
+    difficulty: 'medium',
+    variables: [
+      { name: 'object', type: 'object', options: ['вашу еду', 'рабочее место', 'любимую вещь', 'обувь', 'книгу'] },
+      { name: 'angle', type: 'angle', options: ['сверху (flat lay)', 'снизу', 'на уровне глаз', 'сбоку', 'через стекло'] },
+    ],
+  },
+  {
+    id: 'tmpl-5',
+    pattern: 'Найдите в городе [object] цвета [color]',
+    category: 'urban',
+    difficulty: 'easy',
+    variables: [
+      { name: 'object', type: 'object', options: ['дверь', 'машину', 'цветок', 'вывеску', 'скамейку'] },
+      { name: 'color', type: 'color', options: ['красного', 'синего', 'жёлтого', 'зелёного', 'розового'] },
+    ],
+  },
+];
 
 /**
  * Рассчитывает награду XP на основе сложности

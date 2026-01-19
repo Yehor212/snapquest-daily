@@ -86,6 +86,7 @@ export default function CreateEventPage() {
         .map(c => ({
           title: c.title,
           description: c.description || undefined,
+          xpReward: c.xpReward || 30,
         }));
 
       const event = await createEventMutation.mutateAsync({

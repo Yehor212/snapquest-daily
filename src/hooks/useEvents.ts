@@ -67,7 +67,7 @@ export function useCreateEvent() {
       name: string;
       eventType: Event['event_type'];
       description?: string;
-      challenges?: { title: string; description?: string }[];
+      challenges?: { title: string; description?: string; xpReward?: number }[];
     }) => createEvent(name, eventType, description, challenges),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: eventKeys.user() });

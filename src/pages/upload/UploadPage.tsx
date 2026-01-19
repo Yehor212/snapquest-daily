@@ -11,7 +11,7 @@ import { verifyImage, VerificationResult } from '@/lib/imageVerification';
 import { useToast } from '@/hooks/use-toast';
 import { useDailyChallenge } from '@/hooks/useChallenges';
 import { useUploadPhoto } from '@/hooks/usePhotos';
-import { useAddXp } from '@/hooks/useProfile';
+import { useAddXp, useUpdateStreak } from '@/hooks/useProfile';
 import { useCompleteHuntTask, useHuntWithTasks } from '@/hooks/useHunts';
 import { supabase } from '@/lib/supabase';
 
@@ -25,6 +25,7 @@ export default function UploadPage() {
   const { data: challenge, isLoading: challengeLoading } = useDailyChallenge();
   const uploadPhotoMutation = useUploadPhoto();
   const addXpMutation = useAddXp();
+  const updateStreakMutation = useUpdateStreak();
   const completeHuntTaskMutation = useCompleteHuntTask();
 
   // Support both challengeId and challenge query params
@@ -33,6 +34,10 @@ export default function UploadPage() {
   const eventChallengeId = searchParams.get('eventChallenge');
   const huntId = searchParams.get('huntId') || searchParams.get('hunt');
   const huntTaskId = searchParams.get('huntTask');
+
+  // Support custom challenge title and XP from generator (for non-DB challenges)
+  const customChallengeTitle = searchParams.get('challengeTitle');
+  const customXp = searchParams.get('xp') ? parseInt(searchParams.get('xp')!, 10) : null;
 
   // Fetch hunt data if huntId is present
   const { data: huntData } = useHuntWithTasks(huntId || undefined);
@@ -53,12 +58,15 @@ export default function UploadPage() {
       } else if (huntTaskId && huntData?.tasks) {
         const task = huntData.tasks.find(t => t.id === huntTaskId);
         if (task) setContextXp(task.xp_reward);
+      } else if (customXp) {
+        // Use custom XP from generator URL param
+        setContextXp(customXp);
       } else if (challenge?.xp_reward) {
         setContextXp(challenge.xp_reward);
       }
     };
     fetchContextXp();
-  }, [eventChallengeId, huntTaskId, huntData, challenge]);
+  }, [eventChallengeId, huntTaskId, huntData, challenge, customXp]);
 
   const [step, setStep] = useState<Step>('select');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -127,13 +135,13 @@ export default function UploadPage() {
         message: 'Фото принято',
       };
 
-      if (challenge) {
-        const hfApiKey = import.meta.env.VITE_HF_API_KEY;
+      // Use challenge title for verification (DB challenge or custom from generator)
+      const verificationTitle = challenge?.title || customChallengeTitle;
+      if (verificationTitle) {
         result = await verifyImage(
           fileForVerification,
-          challenge.title,
-          challenge.description || undefined,
-          hfApiKey
+          verificationTitle,
+          challenge?.description || undefined
         );
       }
 
@@ -172,8 +180,8 @@ export default function UploadPage() {
       // Convert base64 to File for Supabase upload
       const file = await base64ToFile(processedImage, 'photo.jpg');
 
-      // Upload to Supabase
-      await uploadPhotoMutation.mutateAsync({
+      // Upload to Supabase and get photo ID
+      const uploadedPhoto = await uploadPhotoMutation.mutateAsync({
         file,
         options: {
           challengeId: challengeId || undefined,
@@ -185,16 +193,19 @@ export default function UploadPage() {
         },
       });
 
-      // Complete hunt task if applicable (adds XP via the function)
-      if (huntId && huntTaskId) {
+      // Complete hunt task if applicable (RPC handles XP and streak atomically)
+      if (huntId && huntTaskId && uploadedPhoto?.id) {
         await completeHuntTaskMutation.mutateAsync({
           huntId,
           taskId: huntTaskId,
-          xpReward: contextXp,
+          photoId: uploadedPhoto.id,
         });
+        // RPC already handles XP and streak
       } else {
-        // Add XP reward for daily challenges and events
+        // Add XP reward for daily challenges, events, and custom challenges
         await addXpMutation.mutateAsync(contextXp);
+        // Update streak for all non-hunt uploads
+        await updateStreakMutation.mutateAsync();
       }
 
       setStep('success');
@@ -303,6 +314,20 @@ export default function UploadPage() {
                 </h2>
                 <p className="text-muted-foreground text-sm mb-4">
                   {challenge.description}
+                </p>
+                <XpBadge xp={xpReward} />
+              </div>
+            ) : customChallengeTitle ? (
+              <div className="text-center max-w-sm">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary border border-border mb-4">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium">Генератор</span>
+                </div>
+                <h2 className="font-display text-2xl font-bold mb-2">
+                  {customChallengeTitle}
+                </h2>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Выполните сгенерированный челлендж
                 </p>
                 <XpBadge xp={xpReward} />
               </div>

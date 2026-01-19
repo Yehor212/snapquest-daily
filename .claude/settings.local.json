@@ -11,7 +11,8 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix GitHub Pages SPA routing\n\n- Add basename to BrowserRouter for GitHub Pages\n- Add 404.html for SPA redirect handling\n- Add redirect script to index.html\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(timeout /t 5 /nobreak)"
     ]
   }
 }

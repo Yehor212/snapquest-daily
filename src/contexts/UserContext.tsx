@@ -1,79 +1,61 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { User } from '@/types';
-import { getUser, saveUser, updateUserXp, updateUserStreak } from '@/lib/storage';
-import { mockCurrentUser } from '@/data/mockData';
+import { useAuthContext } from './AuthContext';
+import { useCurrentProfile, useAddXp } from '@/hooks/useProfile';
+import { updateStreak as apiUpdateStreak } from '@/lib/api/profiles';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface UserContextType {
-  user: User | null;
+  user: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatar: string | null;
+    xp: number;
+    level: number;
+    streak: number;
+    longestStreak: number;
+    photosCount: number;
+    badgesCount: number;
+  } | null;
   isLoading: boolean;
-  login: (username?: string) => void;
-  logout: () => void;
-  addXp: (amount: number) => void;
-  incrementStreak: () => void;
-  incrementPhotosCount: () => void;
+  isAuthenticated: boolean;
+  addXp: (amount: number) => Promise<void>;
+  incrementStreak: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user: authUser, loading: authLoading, isAuthenticated } = useAuthContext();
+  const { data: profile, isLoading: profileLoading } = useCurrentProfile();
+  const addXpMutation = useAddXp();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    // Загружаем пользователя из localStorage или создаём нового
-    const storedUser = getUser();
-    if (storedUser) {
-      setUser(storedUser);
-    } else {
-      // Для демо используем mock пользователя
-      saveUser(mockCurrentUser);
-      setUser(mockCurrentUser);
-    }
-    setIsLoading(false);
-  }, []);
+  const isLoading = authLoading || (isAuthenticated && profileLoading);
 
-  const login = (username?: string) => {
-    const newUser: User = {
-      ...mockCurrentUser,
-      id: `user-${Date.now()}`,
-      username: username || mockCurrentUser.username,
-      displayName: username || mockCurrentUser.displayName,
-      xp: 0,
-      level: 1,
-      streak: 0,
-      photosCount: 0,
-      badgesCount: 0,
-      createdAt: new Date().toISOString(),
-    };
-    saveUser(newUser);
-    setUser(newUser);
+  // Map Supabase profile to local user format
+  const user = profile ? {
+    id: profile.id,
+    username: profile.username || 'user',
+    displayName: profile.display_name || profile.username || 'Пользователь',
+    avatar: profile.avatar_url,
+    xp: profile.xp,
+    level: profile.level,
+    streak: profile.streak,
+    longestStreak: profile.longest_streak,
+    photosCount: 0, // Will be fetched separately if needed
+    badgesCount: 0, // Will be fetched separately if needed
+  } : null;
+
+  const addXp = async (amount: number) => {
+    if (!isAuthenticated) return;
+    await addXpMutation.mutateAsync(amount);
   };
 
-  const logout = () => {
-    localStorage.removeItem('snapquest_user');
-    setUser(null);
-  };
-
-  const addXp = (amount: number) => {
-    const updatedUser = updateUserXp(amount);
-    if (updatedUser) {
-      setUser({ ...updatedUser });
-    }
-  };
-
-  const incrementStreak = () => {
-    const updatedUser = updateUserStreak();
-    if (updatedUser) {
-      setUser({ ...updatedUser });
-    }
-  };
-
-  const incrementPhotosCount = () => {
-    if (user) {
-      const updatedUser = { ...user, photosCount: user.photosCount + 1 };
-      saveUser(updatedUser);
-      setUser(updatedUser);
-    }
+  const incrementStreak = async () => {
+    if (!isAuthenticated) return;
+    await apiUpdateStreak();
+    queryClient.invalidateQueries({ queryKey: ['profile'] });
   };
 
   return (
@@ -81,11 +63,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isLoading,
-        login,
-        logout,
+        isAuthenticated,
         addXp,
         incrementStreak,
-        incrementPhotosCount,
       }}
     >
       {children}

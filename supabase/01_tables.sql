@@ -132,6 +132,7 @@ create table badges (
   name text not null,
   description text,
   icon text,
+  color text default 'primary',
   category text,
   requirement_type text,
   requirement_value integer

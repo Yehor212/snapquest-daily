@@ -33,8 +33,7 @@ export function PhotoVerification({
       const verificationResult = await verifyImage(
         imageFile,
         challengeTitle,
-        challengeDescription,
-        import.meta.env.VITE_HUGGINGFACE_API_KEY
+        challengeDescription
       );
 
       setResult(verificationResult);

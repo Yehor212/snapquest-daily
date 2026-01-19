@@ -147,50 +147,42 @@ export async function startHunt(huntId: string): Promise<HuntProgress | null> {
 }
 
 /**
- * Complete a hunt task
+ * Complete a hunt task using the RPC function
+ * This atomically updates progress, links photo, and adds XP
  */
 export async function completeHuntTask(
   huntId: string,
   taskId: string,
-  xpReward: number
+  photoId: string
 ): Promise<HuntProgress | null> {
   if (!isSupabaseConfigured) return null;
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Get current progress
-  let progress = await getHuntProgress(huntId);
+  try {
+    // Call the RPC function for atomic operation
+    const { error } = await supabase.rpc('complete_hunt_task', {
+      p_hunt_id: huntId,
+      p_task_id: taskId,
+      p_photo_id: photoId,
+    });
 
-  // Start hunt if not started
-  if (!progress) {
-    progress = await startHunt(huntId);
-  }
+    if (error) {
+      // Check if task was already completed
+      if (error.message?.includes('already completed')) {
+        return getHuntProgress(huntId);
+      }
+      console.error('Error completing hunt task:', error);
+      return null;
+    }
 
-  if (!progress) return null;
-
-  // Check if task already completed
-  if (progress.completed_tasks.includes(taskId)) {
-    return progress;
-  }
-
-  // Update progress
-  const { data, error } = await supabase
-    .from('hunt_progress')
-    .update({
-      completed_tasks: [...progress.completed_tasks, taskId],
-      total_xp_earned: progress.total_xp_earned + xpReward,
-    })
-    .eq('id', progress.id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error completing task:', error);
+    // Return updated progress
+    return getHuntProgress(huntId);
+  } catch (error) {
+    console.error('Error in completeHuntTask:', error);
     return null;
   }
-
-  return data;
 }
 
 /**

@@ -83,18 +83,19 @@ export function useStartHunt() {
 
 /**
  * Hook to complete a hunt task
+ * Uses RPC which atomically updates progress, links photo, and adds XP
  */
 export function useCompleteHuntTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ huntId, taskId, xpReward }: { huntId: string; taskId: string; xpReward: number }) =>
-      completeHuntTask(huntId, taskId, xpReward),
+    mutationFn: ({ huntId, taskId, photoId }: { huntId: string; taskId: string; photoId: string }) =>
+      completeHuntTask(huntId, taskId, photoId),
     onSuccess: (data, { huntId }) => {
       if (data) {
         queryClient.setQueryData(huntKeys.progress(huntId), data);
         queryClient.invalidateQueries({ queryKey: huntKeys.userProgress() });
-        // Also invalidate profile to update XP
+        // Also invalidate profile to update XP (RPC adds XP)
         queryClient.invalidateQueries({ queryKey: ['profile'] });
       }
     },

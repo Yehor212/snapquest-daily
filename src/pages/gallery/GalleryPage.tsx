@@ -70,6 +70,10 @@ export default function GalleryPage() {
       eventId: photo.event_id || undefined,
       huntTaskId: photo.hunt_task_id || undefined,
       filter: photo.filter_applied || undefined,
+      // Include profile data if available (from PhotoWithProfile)
+      username: (photo as any).username || undefined,
+      display_name: (photo as any).display_name || undefined,
+      avatar_url: (photo as any).avatar_url || undefined,
     }));
   };
 

@@ -1,24 +1,83 @@
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, MessageCircle, Share2, Award, Calendar, MapPin } from 'lucide-react';
+import { X, Heart, MessageCircle, Share2, Award, Calendar, MapPin, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Photo } from '@/types';
-import { mockUsers } from '@/data/mockData';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+
+interface UserProfile {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+}
 
 interface PhotoDetailModalProps {
-  photo: Photo | null;
+  photo: (Photo & {
+    username?: string | null;
+    display_name?: string | null;
+    avatar_url?: string | null;
+  }) | null;
   onClose: () => void;
 }
 
 export function PhotoDetailModal({ photo, onClose }: PhotoDetailModalProps) {
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(false);
+
+  useEffect(() => {
+    if (!photo) {
+      setUserProfile(null);
+      return;
+    }
+
+    // If photo includes profile info, use it directly
+    if (photo.username || photo.display_name) {
+      setUserProfile({
+        id: photo.userId,
+        username: photo.username || null,
+        display_name: photo.display_name || null,
+        avatar_url: photo.avatar_url || null,
+      });
+      return;
+    }
+
+    // Otherwise fetch from Supabase
+    if (photo.userId && isSupabaseConfigured) {
+      setIsLoadingUser(true);
+      supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', photo.userId)
+        .maybeSingle()
+        .then(({ data }) => {
+          setUserProfile(data);
+          setIsLoadingUser(false);
+        })
+        .catch(() => {
+          setIsLoadingUser(false);
+        });
+    }
+  }, [photo?.userId, photo?.username, photo?.display_name, photo?.avatar_url]);
+
   if (!photo) return null;
 
-  const user = mockUsers.find(u => u.id === photo.userId);
   const formattedDate = new Date(photo.createdAt).toLocaleDateString('ru-RU', {
     day: 'numeric',
     month: 'long',
     hour: '2-digit',
     minute: '2-digit',
   });
+
+  const displayName = userProfile?.display_name || userProfile?.username || 'Пользователь';
+  const username = userProfile?.username || 'user';
+  const avatarUrl = userProfile?.avatar_url;
+
+  // Generate avatar color based on username
+  const avatarColors = ['bg-primary', 'bg-accent', 'bg-gold', 'bg-success'];
+  const avatarColor = avatarColors[displayName.length % avatarColors.length];
+
+  const getInitial = (name: string) => name.charAt(0).toUpperCase();
 
   return (
     <AnimatePresence>
@@ -69,16 +128,26 @@ export function PhotoDetailModal({ photo, onClose }: PhotoDetailModalProps) {
             {/* Info */}
             <div className="p-4 space-y-4">
               {/* User info */}
-              {user && (
+              {isLoadingUser ? (
                 <div className="flex items-center gap-3">
-                  <img
-                    src={user.avatar}
-                    alt={user.displayName}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
+                  <Loader2 className="w-10 h-10 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={displayName}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className={`w-10 h-10 rounded-full ${avatarColor} flex items-center justify-center text-sm font-semibold text-primary-foreground`}>
+                      {getInitial(displayName)}
+                    </div>
+                  )}
                   <div>
-                    <p className="font-medium">{user.displayName}</p>
-                    <p className="text-sm text-muted-foreground">@{user.username}</p>
+                    <p className="font-medium">{displayName}</p>
+                    <p className="text-sm text-muted-foreground">@{username}</p>
                   </div>
                 </div>
               )}
