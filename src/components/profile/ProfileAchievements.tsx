@@ -1,41 +1,80 @@
 import { motion } from "framer-motion";
-import { Award, ChevronRight, Sparkles, Target, Flame, Camera } from "lucide-react";
-
-const achievements = [
-  {
-    icon: Flame,
-    title: "Рекордный стрик",
-    value: "23 дня",
-    description: "Твой лучший результат",
-    color: "text-primary",
-    bgColor: "bg-primary/20",
-  },
-  {
-    icon: Target,
-    title: "Точность попаданий",
-    value: "89%",
-    description: "Процент в ТОП",
-    color: "text-accent",
-    bgColor: "bg-accent/20",
-  },
-  {
-    icon: Camera,
-    title: "Любимая тема",
-    value: "Пейзажи",
-    description: "32 выполнения",
-    color: "text-success",
-    bgColor: "bg-success/20",
-  },
-];
-
-const milestones = [
-  { target: 50, current: 50, label: "Первые 50 фото", completed: true },
-  { target: 100, current: 100, label: "100 фото мастер", completed: true },
-  { target: 150, current: 127, label: "150 фото эксперт", completed: false },
-  { target: 365, current: 127, label: "Год креатива", completed: false },
-];
+import { Award, Sparkles, Target, Flame, Camera, Heart, Loader2 } from "lucide-react";
+import { useUserAchievements, useCurrentProfile, useUserStats } from "@/hooks/useProfile";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const ProfileAchievements = () => {
+  const { user } = useAuth();
+  const { data: achievements, isLoading: achievementsLoading } = useUserAchievements();
+  const { data: profile, isLoading: profileLoading } = useCurrentProfile();
+  const { data: stats } = useUserStats(user?.id);
+
+  const isLoading = achievementsLoading || profileLoading;
+
+  if (isLoading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.6 }}
+        className="bg-card rounded-2xl border border-border p-6"
+      >
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        </div>
+      </motion.div>
+    );
+  }
+
+  const totalPhotos = stats?.photosCount || achievements?.totalPhotos || 0;
+  const topPhotosCount = achievements?.topPhotosCount || 0;
+
+  const achievementsList = [
+    {
+      icon: Flame,
+      title: "Рекордный стрик",
+      value: `${profile?.longest_streak || 0} дн.`,
+      description: "Твой лучший результат",
+      color: "text-primary",
+      bgColor: "bg-primary/20",
+    },
+    {
+      icon: Target,
+      title: "В ТОП",
+      value: `${topPhotosCount}`,
+      description: "Фото в топе (10+ лайков)",
+      color: "text-accent",
+      bgColor: "bg-accent/20",
+    },
+    {
+      icon: Heart,
+      title: "Всего лайков",
+      value: `${achievements?.totalLikes || 0}`,
+      description: "Получено лайков",
+      color: "text-primary",
+      bgColor: "bg-primary/20",
+    },
+  ];
+
+  // Add favorite theme if exists
+  if (achievements?.favoriteTheme) {
+    achievementsList.push({
+      icon: Camera,
+      title: "Любимая тема",
+      value: achievements.favoriteTheme,
+      description: `${achievements.favoriteThemeCount} выполнений`,
+      color: "text-success",
+      bgColor: "bg-success/20",
+    });
+  }
+
+  const milestones = [
+    { target: 1, current: totalPhotos, label: "Первое фото", completed: totalPhotos >= 1 },
+    { target: 10, current: totalPhotos, label: "10 фото", completed: totalPhotos >= 10 },
+    { target: 50, current: totalPhotos, label: "50 фото мастер", completed: totalPhotos >= 50 },
+    { target: 100, current: totalPhotos, label: "100 фото эксперт", completed: totalPhotos >= 100 },
+  ];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -55,7 +94,7 @@ export const ProfileAchievements = () => {
 
       {/* Personal bests */}
       <div className="space-y-3 mb-6">
-        {achievements.map((achievement, index) => (
+        {achievementsList.map((achievement, index) => (
           <motion.div
             key={achievement.title}
             initial={{ opacity: 0, x: -20 }}
@@ -101,14 +140,14 @@ export const ProfileAchievements = () => {
                     {milestone.label}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {milestone.current}/{milestone.target}
+                    {Math.min(milestone.current, milestone.target)}/{milestone.target}
                   </span>
                 </div>
                 {!milestone.completed && (
                   <div className="h-1 bg-secondary rounded-full overflow-hidden">
                     <div
                       className="h-full gradient-primary rounded-full"
-                      style={{ width: `${(milestone.current / milestone.target) * 100}%` }}
+                      style={{ width: `${Math.min(100, (milestone.current / milestone.target) * 100)}%` }}
                     />
                   </div>
                 )}

@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, Users, LogIn } from 'lucide-react';
+import { ArrowLeft, Plus, Users, LogIn, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EventCard, JoinEventDialog } from '@/components/events';
 import { EmptyState } from '@/components/common';
-import type { PrivateEvent } from '@/types';
-import { mockEvents } from '@/data/mockData';
-import { getEvents } from '@/lib/storage';
+import type { Event } from '@/lib/api/events';
+import { useUserEvents } from '@/hooks/useEvents';
 import { useToast } from '@/hooks/use-toast';
 
 export default function EventsPage() {
@@ -15,20 +14,18 @@ export default function EventsPage() {
   const { toast } = useToast();
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
 
-  // Combine mock events with saved events
-  const savedEvents = getEvents();
-  const allEvents = [...savedEvents, ...mockEvents];
+  const { data: events, isLoading } = useUserEvents();
 
   // Group by status
-  const activeEvents = allEvents.filter(e => e.status === 'active');
-  const draftEvents = allEvents.filter(e => e.status === 'draft');
-  const completedEvents = allEvents.filter(e => e.status === 'completed');
+  const activeEvents = (events || []).filter(e => e.status === 'active');
+  const draftEvents = (events || []).filter(e => e.status === 'draft');
+  const completedEvents = (events || []).filter(e => e.status === 'completed' || e.status === 'archived');
 
   const handleEventClick = (eventId: string) => {
     navigate(`/events/${eventId}`);
   };
 
-  const handleJoinEvent = (event: PrivateEvent) => {
+  const handleJoinEvent = (event: Event) => {
     toast({
       title: 'Вы присоединились!',
       description: `Добро пожаловать на "${event.name}"`,
@@ -95,87 +92,96 @@ export default function EventsPage() {
           </Button>
         </div>
 
-        {/* Active Events */}
-        {activeEvents.length > 0 && (
-          <section>
-            <h3 className="font-display text-lg font-bold mb-4">
-              Активные события
-            </h3>
-            <div className="space-y-4">
-              {activeEvents.map((event, index) => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <EventCard
-                    event={event}
-                    onClick={() => handleEventClick(event.id)}
-                  />
-                </motion.div>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* Loading state */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <>
+            {/* Active Events */}
+            {activeEvents.length > 0 && (
+              <section>
+                <h3 className="font-display text-lg font-bold mb-4">
+                  Активные события
+                </h3>
+                <div className="space-y-4">
+                  {activeEvents.map((event, index) => (
+                    <motion.div
+                      key={event.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <EventCard
+                        event={event}
+                        onClick={() => handleEventClick(event.id)}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
+              </section>
+            )}
 
-        {/* Draft Events */}
-        {draftEvents.length > 0 && (
-          <section>
-            <h3 className="font-display text-lg font-bold mb-4">
-              Черновики
-            </h3>
-            <div className="space-y-4">
-              {draftEvents.map((event, index) => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <EventCard
-                    event={event}
-                    onClick={() => handleEventClick(event.id)}
-                  />
-                </motion.div>
-              ))}
-            </div>
-          </section>
-        )}
+            {/* Draft Events */}
+            {draftEvents.length > 0 && (
+              <section>
+                <h3 className="font-display text-lg font-bold mb-4">
+                  Черновики
+                </h3>
+                <div className="space-y-4">
+                  {draftEvents.map((event, index) => (
+                    <motion.div
+                      key={event.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <EventCard
+                        event={event}
+                        onClick={() => handleEventClick(event.id)}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
+              </section>
+            )}
 
-        {/* Completed Events */}
-        {completedEvents.length > 0 && (
-          <section>
-            <h3 className="font-display text-lg font-bold mb-4">
-              Завершённые
-            </h3>
-            <div className="space-y-4">
-              {completedEvents.map((event, index) => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <EventCard
-                    event={event}
-                    onClick={() => handleEventClick(event.id)}
-                  />
-                </motion.div>
-              ))}
-            </div>
-          </section>
-        )}
+            {/* Completed Events */}
+            {completedEvents.length > 0 && (
+              <section>
+                <h3 className="font-display text-lg font-bold mb-4">
+                  Завершённые
+                </h3>
+                <div className="space-y-4">
+                  {completedEvents.map((event, index) => (
+                    <motion.div
+                      key={event.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <EventCard
+                        event={event}
+                        onClick={() => handleEventClick(event.id)}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
+              </section>
+            )}
 
-        {/* Empty state */}
-        {allEvents.length === 0 && (
-          <EmptyState
-            icon={Users}
-            title="Нет событий"
-            description="Создайте своё первое событие или присоединитесь к существующему"
-            actionLabel="Создать событие"
-            onAction={() => navigate('/events/create')}
-          />
+            {/* Empty state */}
+            {(events || []).length === 0 && (
+              <EmptyState
+                icon={Users}
+                title="Нет событий"
+                description="Создайте своё первое событие или присоединитесь к существующему"
+                actionLabel="Создать событие"
+                onAction={() => navigate('/events/create')}
+              />
+            )}
+          </>
         )}
       </main>
 

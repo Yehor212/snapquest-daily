@@ -162,6 +162,15 @@ export function fileToBase64(file: File): Promise<string> {
 }
 
 /**
+ * Конвертирует base64 строку в File
+ */
+export async function base64ToFile(base64: string, filename: string): Promise<File> {
+  const res = await fetch(base64);
+  const blob = await res.blob();
+  return new File([blob], filename, { type: blob.type || 'image/jpeg' });
+}
+
+/**
  * Создаёт миниатюру изображения
  */
 export async function createThumbnail(

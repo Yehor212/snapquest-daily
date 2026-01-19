@@ -1,68 +1,77 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, ImageIcon } from 'lucide-react';
+import { ArrowLeft, Plus, ImageIcon, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PhotoGallery, GalleryFilters } from '@/components/gallery';
 import { EmptyState } from '@/components/common';
-import type { Photo, PhotoGalleryFilter } from '@/types';
-import { getAllPhotos } from '@/lib/storage';
-import { mockPhotos } from '@/data/mockData';
+import type { PhotoGalleryFilter } from '@/types';
+import { useUserPhotos, usePhotoFeed } from '@/hooks/usePhotos';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function GalleryPage() {
   const navigate = useNavigate();
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
   const [filter, setFilter] = useState<PhotoGalleryFilter>({
     sortBy: 'date',
     sortOrder: 'desc',
   });
 
-  useEffect(() => {
-    loadPhotos();
-  }, []);
-
-  const loadPhotos = async () => {
-    try {
-      // Загружаем фото из IndexedDB
-      const savedPhotos = await getAllPhotos();
-      // Объединяем с mock данными для демо
-      const allPhotos = [...savedPhotos, ...mockPhotos];
-      setPhotos(allPhotos);
-    } catch (error) {
-      console.error('Error loading photos:', error);
-      // Fallback to mock data
-      setPhotos(mockPhotos);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { data: feedPhotos, isLoading: feedLoading } = usePhotoFeed(50);
+  const { data: myPhotos, isLoading: myLoading } = useUserPhotos(user?.id);
 
   const handleFilterChange = (newFilter: Partial<PhotoGalleryFilter>) => {
     setFilter(prev => ({ ...prev, ...newFilter }));
   };
 
-  // Применяем фильтры и сортировку
-  const filteredPhotos = photos
+  // Apply filters and sorting to feed photos
+  const filteredFeedPhotos = (feedPhotos || [])
     .filter(photo => {
-      if (filter.isTop && !photo.isTop) return false;
+      if (filter.isTop && photo.likes_count < 10) return false;
       return true;
     })
     .sort((a, b) => {
       const order = filter.sortOrder === 'desc' ? -1 : 1;
       if (filter.sortBy === 'date') {
-        return order * (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return order * (new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       }
       if (filter.sortBy === 'likes') {
-        return order * (b.likes - a.likes);
+        return order * ((b.likes_count || 0) - (a.likes_count || 0));
       }
       return 0;
     });
 
-  // Разделяем на свои и чужие фото
-  const myPhotos = filteredPhotos.filter(p => p.userId === 'user-1');
-  const feedPhotos = filteredPhotos;
+  // Apply filters and sorting to my photos
+  const filteredMyPhotos = (myPhotos || [])
+    .sort((a, b) => {
+      const order = filter.sortOrder === 'desc' ? -1 : 1;
+      if (filter.sortBy === 'date') {
+        return order * (new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      }
+      if (filter.sortBy === 'likes') {
+        return order * ((b.likes_count || 0) - (a.likes_count || 0));
+      }
+      return 0;
+    });
+
+  // Convert Supabase photos to the format expected by PhotoGallery
+  const mapPhotosForGallery = (photos: typeof feedPhotos) => {
+    return (photos || []).map(photo => ({
+      id: photo.id,
+      userId: photo.user_id,
+      imageData: photo.image_url,
+      thumbnailData: photo.thumbnail_url || photo.image_url,
+      createdAt: photo.created_at,
+      likes: photo.likes_count,
+      comments: 0,
+      isTop: photo.likes_count >= 10,
+      challengeId: photo.challenge_id || undefined,
+      eventId: photo.event_id || undefined,
+      huntTaskId: photo.hunt_task_id || undefined,
+      filter: photo.filter_applied || undefined,
+    }));
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -95,21 +104,16 @@ export default function GalleryPage() {
           </div>
 
           <TabsContent value="all">
-            {isLoading ? (
-              <div className="grid grid-cols-3 gap-2">
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="aspect-square rounded-lg bg-secondary animate-pulse"
-                  />
-                ))}
+            {feedLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
-            ) : feedPhotos.length > 0 ? (
+            ) : filteredFeedPhotos.length > 0 ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                <PhotoGallery photos={feedPhotos} columns={3} />
+                <PhotoGallery photos={mapPhotosForGallery(filteredFeedPhotos)} columns={3} />
               </motion.div>
             ) : (
               <EmptyState
@@ -123,21 +127,22 @@ export default function GalleryPage() {
           </TabsContent>
 
           <TabsContent value="my">
-            {isLoading ? (
-              <div className="grid grid-cols-3 gap-2">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="aspect-square rounded-lg bg-secondary animate-pulse"
-                  />
-                ))}
+            {!user ? (
+              <EmptyState
+                icon={ImageIcon}
+                title="Войдите в аккаунт"
+                description="Чтобы видеть свои фото, необходимо войти в аккаунт"
+              />
+            ) : myLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
-            ) : myPhotos.length > 0 ? (
+            ) : filteredMyPhotos.length > 0 ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                <PhotoGallery photos={myPhotos} columns={3} />
+                <PhotoGallery photos={mapPhotosForGallery(filteredMyPhotos)} columns={3} />
               </motion.div>
             ) : (
               <EmptyState

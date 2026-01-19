@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Users, ArrowRight, AlertCircle } from 'lucide-react';
+import { Users, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -10,19 +10,22 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AccessCodeInput } from '@/components/common';
-import type { PrivateEvent } from '@/types';
-import { getEventByCode } from '@/lib/storage';
+import type { Event } from '@/lib/api/events';
+import { useJoinEvent } from '@/hooks/useEvents';
+import { joinEventByCode } from '@/lib/api/events';
 
 interface JoinEventDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onJoin: (event: PrivateEvent) => void;
+  onJoin: (event: Event) => void;
 }
 
 export function JoinEventDialog({ open, onOpenChange, onJoin }: JoinEventDialogProps) {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [foundEvent, setFoundEvent] = useState<PrivateEvent | null>(null);
+  const [foundEvent, setFoundEvent] = useState<Event | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const joinEventMutation = useJoinEvent();
 
   const handleCodeChange = (newCode: string) => {
     setCode(newCode);
@@ -30,14 +33,24 @@ export function JoinEventDialog({ open, onOpenChange, onJoin }: JoinEventDialogP
     setFoundEvent(null);
   };
 
-  const handleCodeComplete = (completedCode: string) => {
-    const event = getEventByCode(completedCode);
-    if (event) {
-      setFoundEvent(event);
-      setError(null);
-    } else {
-      setError('Событие не найдено. Проверьте код.');
+  const handleCodeComplete = async (completedCode: string) => {
+    setIsSearching(true);
+    setError(null);
+
+    try {
+      const event = await joinEventByCode(completedCode);
+      if (event) {
+        setFoundEvent(event);
+        setError(null);
+      } else {
+        setError('Событие не найдено. Проверьте код.');
+        setFoundEvent(null);
+      }
+    } catch (err) {
+      setError('Ошибка при поиске события');
       setFoundEvent(null);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -75,6 +88,14 @@ export function JoinEventDialog({ open, onOpenChange, onJoin }: JoinEventDialogP
             onComplete={handleCodeComplete}
           />
 
+          {/* Loading state */}
+          {isSearching && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Поиск события...
+            </div>
+          )}
+
           {/* Error message */}
           {error && (
             <motion.div
@@ -96,12 +117,12 @@ export function JoinEventDialog({ open, onOpenChange, onJoin }: JoinEventDialogP
             >
               <h4 className="font-medium mb-1">{foundEvent.name}</h4>
               <p className="text-sm text-muted-foreground mb-3">
-                {foundEvent.description}
+                {foundEvent.description || 'Нет описания'}
               </p>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Users className="w-4 h-4" />
-                  {foundEvent.participantsCount} участников
+                  Приватное событие
                 </span>
               </div>
             </motion.div>
@@ -110,11 +131,20 @@ export function JoinEventDialog({ open, onOpenChange, onJoin }: JoinEventDialogP
           {/* Join button */}
           <Button
             onClick={handleJoin}
-            disabled={!foundEvent}
+            disabled={!foundEvent || joinEventMutation.isPending}
             className="w-full gap-2"
           >
-            Присоединиться
-            <ArrowRight className="w-4 h-4" />
+            {joinEventMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Присоединение...
+              </>
+            ) : (
+              <>
+                Присоединиться
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </Button>
         </div>
       </DialogContent>

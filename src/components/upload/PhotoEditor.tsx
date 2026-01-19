@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sliders, Sun, Contrast, Droplets } from 'lucide-react';
+import { Sun, Contrast, Droplets } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { PhotoFilterType, PhotoEditOptions } from '@/types';
+import { FILTER_CONFIGS } from '@/lib/imageUtils';
 import { FilterSelector } from './FilterSelector';
-import { PhotoPreview } from './PhotoPreview';
 
 interface PhotoEditorProps {
   imageUrl: string;
@@ -49,8 +49,12 @@ export function PhotoEditor({
     onSave(options);
   };
 
-  // Комбинированный CSS фильтр
-  const combinedFilter = `brightness(${options.brightness}%) contrast(${options.contrast}%) saturate(${options.saturation}%)`;
+  // Комбинированный CSS фильтр (фильтр + настройки)
+  const filterConfig = FILTER_CONFIGS[options.filter];
+  const adjustments = `brightness(${options.brightness}%) contrast(${options.contrast}%) saturate(${options.saturation}%)`;
+  const combinedFilter = filterConfig !== 'none'
+    ? `${filterConfig} ${adjustments}`
+    : adjustments;
 
   return (
     <motion.div

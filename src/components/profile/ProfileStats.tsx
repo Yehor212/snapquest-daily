@@ -1,17 +1,32 @@
 import { motion } from "framer-motion";
-import { TrendingUp, Calendar, Target, Zap } from "lucide-react";
-
-const weekData = [
-  { day: "Пн", completed: true, xp: 50 },
-  { day: "Вт", completed: true, xp: 75 },
-  { day: "Ср", completed: true, xp: 50 },
-  { day: "Чт", completed: true, xp: 100 },
-  { day: "Пт", completed: true, xp: 50 },
-  { day: "Сб", completed: false, xp: 0 },
-  { day: "Вс", completed: false, xp: 0 },
-];
+import { TrendingUp, Calendar, Target, Zap, Loader2 } from "lucide-react";
+import { useWeeklyActivity, useCurrentProfile } from "@/hooks/useProfile";
 
 export const ProfileStats = () => {
+  const { data: weekActivity, isLoading: activityLoading } = useWeeklyActivity();
+  const { data: profile } = useCurrentProfile();
+
+  const weekData = weekActivity || [];
+  const completedDays = weekData.filter(d => d.completed).length;
+  const weeklyXp = weekData.reduce((sum, d) => sum + d.xp, 0);
+  const totalDays = weekData.length || 7;
+  const accuracy = totalDays > 0 ? Math.round((completedDays / totalDays) * 100) : 0;
+
+  if (activityLoading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.3 }}
+        className="bg-card rounded-2xl border border-border p-6"
+      >
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -63,23 +78,23 @@ export const ProfileStats = () => {
         <div className="text-center">
           <div className="flex items-center justify-center gap-1 text-success mb-1">
             <Calendar className="w-4 h-4" />
-            <span className="font-bold">5/7</span>
+            <span className="font-bold">{completedDays}/{totalDays}</span>
           </div>
           <div className="text-xs text-muted-foreground">Выполнено</div>
         </div>
         <div className="text-center">
           <div className="flex items-center justify-center gap-1 text-gold mb-1">
             <Zap className="w-4 h-4" />
-            <span className="font-bold">325</span>
+            <span className="font-bold">{weeklyXp}</span>
           </div>
           <div className="text-xs text-muted-foreground">XP за неделю</div>
         </div>
         <div className="text-center">
           <div className="flex items-center justify-center gap-1 text-primary mb-1">
             <Target className="w-4 h-4" />
-            <span className="font-bold">89%</span>
+            <span className="font-bold">{accuracy}%</span>
           </div>
-          <div className="text-xs text-muted-foreground">Точность</div>
+          <div className="text-xs text-muted-foreground">Активность</div>
         </div>
       </div>
     </motion.div>

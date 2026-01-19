@@ -1,84 +1,137 @@
 import { motion } from "framer-motion";
-import { Heart, MessageCircle, Share2, Award } from "lucide-react";
+import { Heart, MessageCircle, Share2, Award, Loader2, ImageIcon } from "lucide-react";
 import { useState } from "react";
+import { usePhotoFeed, useLikePhoto, useUnlikePhoto, useHasUserLikedPhoto } from "@/hooks/usePhotos";
+import { useAuth } from "@/contexts/AuthContext";
 
-const feedItems = [
-  {
-    id: 1,
-    username: "anna_photo",
-    avatar: "A",
-    avatarColor: "bg-primary",
-    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&h=600&fit=crop",
-    likes: 234,
-    comments: 18,
-    isTop: true,
-    timeAgo: "2ч назад",
-  },
-  {
-    id: 2,
-    username: "maxim.creative",
-    avatar: "M",
-    avatarColor: "bg-accent",
-    image: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=600&h=600&fit=crop",
-    likes: 189,
-    comments: 12,
-    isTop: false,
-    timeAgo: "3ч назад",
-  },
-  {
-    id: 3,
-    username: "elena_art",
-    avatar: "E",
-    avatarColor: "bg-gold",
-    image: "https://images.unsplash.com/photo-1490730141103-6cac27abb37f?w=600&h=600&fit=crop",
-    likes: 312,
-    comments: 24,
-    isTop: true,
-    timeAgo: "4ч назад",
-  },
-  {
-    id: 4,
-    username: "dmitry_shots",
-    avatar: "D",
-    avatarColor: "bg-success",
-    image: "https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=600&h=600&fit=crop",
-    likes: 156,
-    comments: 8,
-    isTop: false,
-    timeAgo: "5ч назад",
-  },
-  {
-    id: 5,
-    username: "kate.moments",
-    avatar: "K",
-    avatarColor: "bg-primary",
-    image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=600&h=600&fit=crop",
-    likes: 278,
-    comments: 21,
-    isTop: false,
-    timeAgo: "6ч назад",
-  },
-  {
-    id: 6,
-    username: "alex_urban",
-    avatar: "А",
-    avatarColor: "bg-accent",
-    image: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600&h=600&fit=crop",
-    likes: 198,
-    comments: 15,
-    isTop: true,
-    timeAgo: "7ч назад",
-  },
-];
+interface FeedItemProps {
+  id: string;
+  imageUrl: string;
+  likesCount: number;
+  username: string;
+  avatarUrl: string | null;
+  isTop: boolean;
+  createdAt: string;
+}
+
+function FeedItem({ id, imageUrl, likesCount, username, avatarUrl, isTop, createdAt }: FeedItemProps) {
+  const { user } = useAuth();
+  const { data: isLiked } = useHasUserLikedPhoto(id);
+  const likeMutation = useLikePhoto();
+  const unlikeMutation = useUnlikePhoto();
+  const [optimisticLiked, setOptimisticLiked] = useState<boolean | null>(null);
+
+  const liked = optimisticLiked !== null ? optimisticLiked : isLiked;
+  const displayLikes = liked && !isLiked ? likesCount + 1 : !liked && isLiked ? likesCount - 1 : likesCount;
+
+  const handleLikeToggle = async () => {
+    if (!user) return;
+
+    if (liked) {
+      setOptimisticLiked(false);
+      await unlikeMutation.mutateAsync(id);
+    } else {
+      setOptimisticLiked(true);
+      await likeMutation.mutateAsync(id);
+    }
+  };
+
+  const formatTimeAgo = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffHours < 1) return 'Только что';
+    if (diffHours < 24) return `${diffHours}ч назад`;
+    if (diffDays < 7) return `${diffDays}д назад`;
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  };
+
+  const getInitial = (name: string) => {
+    return name.charAt(0).toUpperCase();
+  };
+
+  const avatarColors = ['bg-primary', 'bg-accent', 'bg-gold', 'bg-success'];
+  const avatarColor = avatarColors[username.length % avatarColors.length];
+
+  return (
+    <div className="group">
+      <div className="bg-card rounded-2xl overflow-hidden border border-border hover:border-primary/30 transition-all duration-300 hover:shadow-xl hover:shadow-primary/5">
+        {/* Image */}
+        <div className="relative aspect-square overflow-hidden">
+          <img
+            src={imageUrl}
+            alt={`Photo by ${username}`}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+
+          {/* Top badge */}
+          {isTop && (
+            <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full bg-gold text-gold-foreground text-xs font-semibold">
+              <Award className="w-3 h-3" />
+              ТОП
+            </div>
+          )}
+
+          {/* Overlay on hover */}
+          <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        </div>
+
+        {/* Content */}
+        <div className="p-4">
+          {/* User info */}
+          <div className="flex items-center gap-3 mb-3">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={username}
+                className="w-8 h-8 rounded-full object-cover"
+              />
+            ) : (
+              <div className={`w-8 h-8 rounded-full ${avatarColor} flex items-center justify-center text-sm font-semibold text-primary-foreground`}>
+                {getInitial(username)}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm truncate">{username}</p>
+              <p className="text-xs text-muted-foreground">{formatTimeAgo(createdAt)}</p>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleLikeToggle}
+              disabled={!user}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+            >
+              <Heart
+                className={`w-5 h-5 transition-all ${
+                  liked ? "fill-primary text-primary scale-110" : ""
+                }`}
+              />
+              <span className={liked ? "text-primary" : ""}>
+                {displayLikes}
+              </span>
+            </button>
+            <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <MessageCircle className="w-5 h-5" />
+              <span>0</span>
+            </button>
+            <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors ml-auto">
+              <Share2 className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const ChallengeFeed = () => {
-  const [likedPosts, setLikedPosts] = useState<number[]>([]);
-
-  const toggleLike = (id: number) => {
-    setLikedPosts((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
-  };
+  const { data: photos, isLoading } = usePhotoFeed(12);
 
   return (
     <section className="py-20 bg-secondary/30">
@@ -98,93 +151,62 @@ export const ChallengeFeed = () => {
           </p>
         </motion.div>
 
+        {/* Loading state */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!isLoading && (!photos || photos.length === 0) && (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <ImageIcon className="w-16 h-16 text-muted-foreground mb-4" />
+            <h3 className="font-display text-xl font-bold mb-2">Пока нет фото</h3>
+            <p className="text-muted-foreground max-w-md">
+              Станьте первым, кто выполнит сегодняшний челлендж!
+            </p>
+          </div>
+        )}
+
         {/* Feed Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {feedItems.map((item, index) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: index * 0.1 }}
-              className="group"
-            >
-              <div className="bg-card rounded-2xl overflow-hidden border border-border hover:border-primary/30 transition-all duration-300 hover:shadow-xl hover:shadow-primary/5">
-                {/* Image */}
-                <div className="relative aspect-square overflow-hidden">
-                  <img
-                    src={item.image}
-                    alt={`Photo by ${item.username}`}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                  
-                  {/* Top badge */}
-                  {item.isTop && (
-                    <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full bg-gold text-gold-foreground text-xs font-semibold">
-                      <Award className="w-3 h-3" />
-                      ТОП
-                    </div>
-                  )}
-                  
-                  {/* Overlay on hover */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                </div>
-
-                {/* Content */}
-                <div className="p-4">
-                  {/* User info */}
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-8 h-8 rounded-full ${item.avatarColor} flex items-center justify-center text-sm font-semibold text-primary-foreground`}>
-                      {item.avatar}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{item.username}</p>
-                      <p className="text-xs text-muted-foreground">{item.timeAgo}</p>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={() => toggleLike(item.id)}
-                      className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
-                    >
-                      <Heart
-                        className={`w-5 h-5 transition-all ${
-                          likedPosts.includes(item.id)
-                            ? "fill-primary text-primary scale-110"
-                            : ""
-                        }`}
-                      />
-                      <span className={likedPosts.includes(item.id) ? "text-primary" : ""}>
-                        {likedPosts.includes(item.id) ? item.likes + 1 : item.likes}
-                      </span>
-                    </button>
-                    <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                      <MessageCircle className="w-5 h-5" />
-                      <span>{item.comments}</span>
-                    </button>
-                    <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors ml-auto">
-                      <Share2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+        {!isLoading && photos && photos.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            {photos.map((photo, index) => (
+              <motion.div
+                key={photo.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: index * 0.1 }}
+              >
+                <FeedItem
+                  id={photo.id}
+                  imageUrl={photo.image_url}
+                  likesCount={photo.likes_count}
+                  username={photo.user_id.slice(0, 8)}
+                  avatarUrl={null}
+                  isTop={photo.likes_count >= 10}
+                  createdAt={photo.created_at}
+                />
+              </motion.div>
+            ))}
+          </div>
+        )}
 
         {/* Load more */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="text-center mt-10"
-        >
-          <button className="px-6 py-3 rounded-xl border-2 border-border text-muted-foreground font-medium hover:border-primary hover:text-primary transition-colors">
-            Показать ещё
-          </button>
-        </motion.div>
+        {!isLoading && photos && photos.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="text-center mt-10"
+          >
+            <button className="px-6 py-3 rounded-xl border-2 border-border text-muted-foreground font-medium hover:border-primary hover:text-primary transition-colors">
+              Показать ещё
+            </button>
+          </motion.div>
+        )}
       </div>
     </section>
   );

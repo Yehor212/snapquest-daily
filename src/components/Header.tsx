@@ -9,9 +9,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { LoginButton } from "./auth";
+import { useCurrentProfile } from "@/hooks/useProfile";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const Header = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: profile } = useCurrentProfile();
+
+  // Format numbers
+  const formatNumber = (num: number | undefined) => {
+    if (!num) return "0";
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    }
+    return num.toString();
+  };
+
+  const streak = profile?.current_streak || 0;
+  const totalXp = profile?.total_xp || 0;
 
   return (
     <motion.header
@@ -64,23 +81,25 @@ export const Header = () => {
           </Button>
         </nav>
 
-        {/* Stats - Desktop */}
-        <div className="hidden lg:flex items-center gap-6">
-          <div className="flex items-center gap-2 text-sm">
-            <div className="flex items-center gap-1 text-primary">
-              <Flame className="w-4 h-4" />
-              <span className="font-semibold">7</span>
+        {/* Stats - Desktop (only show when logged in) */}
+        {user && (
+          <div className="hidden lg:flex items-center gap-6">
+            <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-1 text-primary">
+                <Flame className="w-4 h-4" />
+                <span className="font-semibold">{streak}</span>
+              </div>
+              <span className="text-muted-foreground">{streak === 1 ? 'день' : streak < 5 ? 'дня' : 'дней'}</span>
             </div>
-            <span className="text-muted-foreground">дней</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <div className="flex items-center gap-1 text-gold">
-              <Trophy className="w-4 h-4" />
-              <span className="font-semibold">2,450</span>
+            <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-1 text-gold">
+                <Trophy className="w-4 h-4" />
+                <span className="font-semibold">{formatNumber(totalXp)}</span>
+              </div>
+              <span className="text-muted-foreground">XP</span>
             </div>
-            <span className="text-muted-foreground">XP</span>
           </div>
-        </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center gap-2">
@@ -128,14 +147,9 @@ export const Header = () => {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden sm:flex"
-            onClick={() => navigate("/profile")}
-          >
-            <User className="w-5 h-5" />
-          </Button>
+          <div className="hidden sm:flex">
+            <LoginButton />
+          </div>
 
           <Button variant="hero" size="sm" onClick={() => navigate("/upload")}>
             <Camera className="w-4 h-4 mr-2" />

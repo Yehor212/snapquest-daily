@@ -1,20 +1,24 @@
 import { motion } from 'framer-motion';
-import { Clock, Users, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Clock, CheckCircle2, ChevronRight, Trophy } from 'lucide-react';
 import { DifficultyBadge, XpBadge, ProgressRing } from '@/components/common';
-import type { ScavengerHunt, HuntProgress } from '@/types';
-import { UI_TEXT } from '@/types';
+import { UI_TEXT, type HuntTheme, type HuntDuration, type Difficulty } from '@/types';
+import type { Hunt, HuntProgress } from '@/lib/api/hunts';
 
 interface HuntCardProps {
-  hunt: ScavengerHunt;
-  progress?: HuntProgress;
+  hunt: Hunt;
+  progress?: HuntProgress | null;
+  taskCount?: number;
   onClick?: () => void;
 }
 
-export function HuntCard({ hunt, progress, onClick }: HuntCardProps) {
-  const completedTasks = progress?.tasksCompleted.length || 0;
-  const totalTasks = hunt.tasks.length;
+export function HuntCard({ hunt, progress, taskCount = 0, onClick }: HuntCardProps) {
+  const completedTasks = progress?.completed_tasks?.length || 0;
+  const totalTasks = taskCount;
   const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-  const isCompleted = completedTasks === totalTasks && totalTasks > 0;
+  const isCompleted = progress?.completed_at !== null && progress?.completed_at !== undefined;
+
+  // Default cover image if not provided
+  const coverImage = hunt.cover_image || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=400&fit=crop';
 
   return (
     <motion.div
@@ -26,7 +30,7 @@ export function HuntCard({ hunt, progress, onClick }: HuntCardProps) {
       {/* Cover Image */}
       <div className="relative h-32 overflow-hidden">
         <img
-          src={hunt.coverImage}
+          src={coverImage}
           alt={hunt.title}
           className="w-full h-full object-cover transition-transform group-hover:scale-105"
         />
@@ -34,10 +38,10 @@ export function HuntCard({ hunt, progress, onClick }: HuntCardProps) {
 
         {/* Badges */}
         <div className="absolute top-3 left-3 flex gap-2">
-          <span className="px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm text-xs font-medium">
-            {UI_TEXT.hunts.themes[hunt.theme]}
+          <span className="px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm text-xs font-medium text-white">
+            {UI_TEXT.hunts.themes[hunt.theme as HuntTheme] || hunt.theme}
           </span>
-          <DifficultyBadge difficulty={hunt.difficulty} size="sm" />
+          <DifficultyBadge difficulty={hunt.difficulty as Difficulty} size="sm" />
         </div>
 
         {/* Completed badge */}
@@ -52,7 +56,7 @@ export function HuntCard({ hunt, progress, onClick }: HuntCardProps) {
 
         {/* XP */}
         <div className="absolute bottom-3 right-3">
-          <XpBadge xp={hunt.totalXp} size="sm" />
+          <XpBadge xp={hunt.total_xp} size="sm" />
         </div>
       </div>
 
@@ -62,7 +66,7 @@ export function HuntCard({ hunt, progress, onClick }: HuntCardProps) {
           {hunt.title}
         </h3>
         <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-          {hunt.description}
+          {hunt.description || 'Нет описания'}
         </p>
 
         {/* Stats */}
@@ -70,12 +74,14 @@ export function HuntCard({ hunt, progress, onClick }: HuntCardProps) {
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <Clock className="w-4 h-4" />
-              {UI_TEXT.hunts.duration[hunt.duration]}
+              {UI_TEXT.hunts.duration[hunt.duration as HuntDuration] || hunt.duration}
             </span>
-            <span className="flex items-center gap-1">
-              <Users className="w-4 h-4" />
-              {hunt.participantsCount}
-            </span>
+            {totalTasks > 0 && (
+              <span className="flex items-center gap-1">
+                <Trophy className="w-4 h-4" />
+                {totalTasks} заданий
+              </span>
+            )}
           </div>
 
           {/* Progress */}

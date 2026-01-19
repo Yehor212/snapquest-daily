@@ -1,15 +1,17 @@
 import { motion } from 'framer-motion';
 import { Calendar, Users, Camera, ChevronRight } from 'lucide-react';
-import type { PrivateEvent } from '@/types';
-import { UI_TEXT } from '@/types';
+import { UI_TEXT, type EventType } from '@/types';
+import type { Event } from '@/lib/api/events';
 
 interface EventCardProps {
-  event: PrivateEvent;
+  event: Event;
+  participantsCount?: number;
+  challengesCount?: number;
   onClick?: () => void;
 }
 
-export function EventCard({ event, onClick }: EventCardProps) {
-  const startDate = new Date(event.startDate);
+export function EventCard({ event, participantsCount = 0, challengesCount = 0, onClick }: EventCardProps) {
+  const startDate = event.start_date ? new Date(event.start_date) : new Date(event.created_at);
   const formattedDate = startDate.toLocaleDateString('ru-RU', {
     day: 'numeric',
     month: 'short',
@@ -19,13 +21,18 @@ export function EventCard({ event, onClick }: EventCardProps) {
     draft: 'bg-yellow-500/20 text-yellow-400',
     active: 'bg-green-500/20 text-green-400',
     completed: 'bg-muted text-muted-foreground',
+    archived: 'bg-muted text-muted-foreground',
   };
 
   const statusLabels = {
     draft: 'Черновик',
     active: 'Активно',
     completed: 'Завершено',
+    archived: 'В архиве',
   };
+
+  // Map Supabase event types to UI text
+  const eventTypeLabel = UI_TEXT.events.eventTypes[event.event_type as EventType] || event.event_type;
 
   return (
     <motion.div
@@ -36,9 +43,9 @@ export function EventCard({ event, onClick }: EventCardProps) {
     >
       {/* Cover */}
       <div className="relative h-32 overflow-hidden">
-        {event.coverImage ? (
+        {event.cover_image ? (
           <img
-            src={event.coverImage}
+            src={event.cover_image}
             alt={event.name}
             className="w-full h-full object-cover transition-transform group-hover:scale-105"
           />
@@ -49,8 +56,8 @@ export function EventCard({ event, onClick }: EventCardProps) {
 
         {/* Type badge */}
         <div className="absolute top-3 left-3">
-          <span className="px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm text-xs font-medium">
-            {UI_TEXT.events.eventTypes[event.eventType]}
+          <span className="px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm text-xs font-medium text-white">
+            {eventTypeLabel}
           </span>
         </div>
 
@@ -63,8 +70,8 @@ export function EventCard({ event, onClick }: EventCardProps) {
 
         {/* Code */}
         <div className="absolute bottom-3 right-3">
-          <span className="px-2 py-1 rounded bg-white/20 backdrop-blur-sm text-xs font-mono">
-            {event.accessCode}
+          <span className="px-2 py-1 rounded bg-white/20 backdrop-blur-sm text-xs font-mono text-white">
+            {event.access_code}
           </span>
         </div>
       </div>
@@ -75,7 +82,7 @@ export function EventCard({ event, onClick }: EventCardProps) {
           {event.name}
         </h3>
         <p className="text-sm text-muted-foreground line-clamp-1 mb-4">
-          {event.description}
+          {event.description || 'Нет описания'}
         </p>
 
         {/* Stats */}
@@ -87,12 +94,14 @@ export function EventCard({ event, onClick }: EventCardProps) {
             </span>
             <span className="flex items-center gap-1">
               <Users className="w-4 h-4" />
-              {event.participantsCount}
+              {participantsCount}
             </span>
-            <span className="flex items-center gap-1">
-              <Camera className="w-4 h-4" />
-              {event.challenges.length}
-            </span>
+            {challengesCount > 0 && (
+              <span className="flex items-center gap-1">
+                <Camera className="w-4 h-4" />
+                {challengesCount}
+              </span>
+            )}
           </div>
 
           <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />

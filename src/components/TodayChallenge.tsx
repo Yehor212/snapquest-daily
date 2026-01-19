@@ -1,9 +1,14 @@
 import { motion } from "framer-motion";
-import { Clock, Camera, Flame, Trophy, ChevronRight } from "lucide-react";
+import { Clock, Camera, Flame, Trophy, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useDailyChallenge, useTodayCompletions } from "@/hooks/useChallenges";
 
 export const TodayChallenge = () => {
+  const navigate = useNavigate();
+  const { data: challenge, isLoading } = useDailyChallenge();
+  const { data: completionsCount } = useTodayCompletions();
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
   useEffect(() => {
@@ -12,9 +17,9 @@ export const TodayChallenge = () => {
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(0, 0, 0, 0);
-      
+
       const diff = tomorrow.getTime() - now.getTime();
-      
+
       return {
         hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
         minutes: Math.floor((diff / 1000 / 60) % 60),
@@ -31,6 +36,11 @@ export const TodayChallenge = () => {
   }, []);
 
   const formatTime = (n: number) => n.toString().padStart(2, "0");
+
+  // Calculate day number (day of year)
+  const dayNumber = Math.floor(
+    (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
+  );
 
   return (
     <section className="py-20 relative overflow-hidden">
@@ -60,7 +70,7 @@ export const TodayChallenge = () => {
           <div className="relative rounded-3xl bg-gradient-to-br from-secondary to-card border border-border p-8 md:p-10 overflow-hidden">
             {/* Glow effect */}
             <div className="absolute -top-20 -right-20 w-60 h-60 bg-primary/20 rounded-full blur-3xl" />
-            
+
             {/* Timer */}
             <div className="flex items-center justify-center gap-2 text-muted-foreground mb-8 relative">
               <Clock className="w-4 h-4" />
@@ -76,49 +86,68 @@ export const TodayChallenge = () => {
 
             {/* Challenge content */}
             <div className="text-center relative">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
-                <Flame className="w-4 h-4" />
-                День #127
-              </div>
-              
-              <h3 className="font-display text-2xl md:text-4xl font-bold mb-4">
-                "Отражение в луже"
-              </h3>
-              
-              <p className="text-muted-foreground text-lg mb-8 max-w-md mx-auto">
-                Найдите лужу или любую отражающую поверхность и создайте интересную композицию с отражением
-              </p>
-
-              {/* Rewards */}
-              <div className="flex items-center justify-center gap-6 mb-8">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center">
-                    <Trophy className="w-4 h-4 text-gold" />
-                  </div>
-                  <span className="text-sm">
-                    <span className="font-semibold text-gold">+50 XP</span>
-                  </span>
+              {isLoading ? (
+                <div className="py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
+                  <p className="text-muted-foreground mt-4">Загрузка челленджа...</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                    <Flame className="w-4 h-4 text-primary" />
+              ) : challenge ? (
+                <>
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
+                    <Flame className="w-4 h-4" />
+                    День #{dayNumber}
                   </div>
-                  <span className="text-sm">
-                    <span className="font-semibold text-primary">+1 день</span>
-                  </span>
+
+                  <h3 className="font-display text-2xl md:text-4xl font-bold mb-4">
+                    "{challenge.title}"
+                  </h3>
+
+                  <p className="text-muted-foreground text-lg mb-8 max-w-md mx-auto">
+                    {challenge.description || "Выполни этот челлендж и получи награду!"}
+                  </p>
+
+                  {/* Rewards */}
+                  <div className="flex items-center justify-center gap-6 mb-8">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center">
+                        <Trophy className="w-4 h-4 text-gold" />
+                      </div>
+                      <span className="text-sm">
+                        <span className="font-semibold text-gold">+{challenge.xp_reward} XP</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                        <Flame className="w-4 h-4 text-primary" />
+                      </div>
+                      <span className="text-sm">
+                        <span className="font-semibold text-primary">+1 день</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="hero"
+                    size="lg"
+                    className="group"
+                    onClick={() => navigate(`/upload?challengeId=${challenge.id}`)}
+                  >
+                    <Camera className="w-5 h-5" />
+                    Выполнить задание
+                    <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                  </Button>
+
+                  {/* Participants count */}
+                  <p className="text-sm text-muted-foreground mt-6">
+                    <span className="text-foreground font-semibold">{completionsCount || 0}</span> человек уже выполнили сегодня
+                  </p>
+                </>
+              ) : (
+                <div className="py-12">
+                  <p className="text-muted-foreground">Челлендж на сегодня пока не доступен</p>
+                  <p className="text-sm text-muted-foreground mt-2">Проверьте позже или войдите в аккаунт</p>
                 </div>
-              </div>
-
-              <Button variant="hero" size="lg" className="group">
-                <Camera className="w-5 h-5" />
-                Выполнить задание
-                <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-              </Button>
-
-              {/* Participants count */}
-              <p className="text-sm text-muted-foreground mt-6">
-                <span className="text-foreground font-semibold">2,847</span> человек уже выполнили
-              </p>
+              )}
             </div>
           </div>
         </motion.div>

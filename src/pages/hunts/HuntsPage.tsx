@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Map, Filter } from 'lucide-react';
+import { ArrowLeft, Map, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -13,35 +13,42 @@ import {
 } from '@/components/ui/select';
 import { HuntCard } from '@/components/hunt';
 import { EmptyState } from '@/components/common';
-import type { HuntTheme, Difficulty, HuntProgress } from '@/types';
+import type { HuntTheme, Difficulty } from '@/types';
 import { UI_TEXT } from '@/types';
-import { mockHunts } from '@/data/mockData';
-import { getHuntProgress } from '@/lib/storage';
+import { useActiveHunts, useUserHuntProgress } from '@/hooks/useHunts';
 
 export default function HuntsPage() {
   const navigate = useNavigate();
   const [themeFilter, setThemeFilter] = useState<HuntTheme | 'all'>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<Difficulty | 'all'>('all');
 
-  // Get all hunt progress from storage
-  const allProgress = getHuntProgress();
+  const { data: hunts, isLoading: huntsLoading } = useActiveHunts();
+  const { data: userProgress, isLoading: progressLoading } = useUserHuntProgress();
+
+  const isLoading = huntsLoading || progressLoading;
+
+  // Create progress map for quick lookup
+  const progressMap = (userProgress || []).reduce((acc, p) => {
+    acc[p.hunt_id] = p;
+    return acc;
+  }, {} as Record<string, typeof userProgress[0]>);
 
   // Filter hunts
-  const filteredHunts = mockHunts.filter(hunt => {
+  const filteredHunts = (hunts || []).filter(hunt => {
     if (themeFilter !== 'all' && hunt.theme !== themeFilter) return false;
     if (difficultyFilter !== 'all' && hunt.difficulty !== difficultyFilter) return false;
     return true;
   });
 
-  // Separate active and completed hunts
+  // Separate active and completed hunts (need to check task counts from hunt details)
   const activeHunts = filteredHunts.filter(hunt => {
-    const progress = allProgress[hunt.id];
-    return !progress || progress.tasksCompleted.length < hunt.tasks.length;
+    const progress = progressMap[hunt.id];
+    return !progress || !progress.completed_at;
   });
 
   const completedHunts = filteredHunts.filter(hunt => {
-    const progress = allProgress[hunt.id];
-    return progress && progress.tasksCompleted.length === hunt.tasks.length;
+    const progress = progressMap[hunt.id];
+    return progress && progress.completed_at;
   });
 
   const handleHuntClick = (huntId: string) => {
@@ -113,67 +120,74 @@ export default function HuntsPage() {
           </Select>
         </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="active" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="active">
-              Активные ({activeHunts.length})
-            </TabsTrigger>
-            <TabsTrigger value="completed">
-              Завершённые ({completedHunts.length})
-            </TabsTrigger>
-          </TabsList>
+        {/* Loading state */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          /* Tabs */
+          <Tabs defaultValue="active" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="active">
+                Активные ({activeHunts.length})
+              </TabsTrigger>
+              <TabsTrigger value="completed">
+                Завершённые ({completedHunts.length})
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="active" className="mt-4 space-y-4">
-            {activeHunts.length > 0 ? (
-              activeHunts.map((hunt, index) => (
-                <motion.div
-                  key={hunt.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <HuntCard
-                    hunt={hunt}
-                    progress={allProgress[hunt.id]}
-                    onClick={() => handleHuntClick(hunt.id)}
-                  />
-                </motion.div>
-              ))
-            ) : (
-              <EmptyState
-                icon={Map}
-                title="Нет активных охот"
-                description="Выберите другие фильтры или посмотрите завершённые охоты"
-              />
-            )}
-          </TabsContent>
+            <TabsContent value="active" className="mt-4 space-y-4">
+              {activeHunts.length > 0 ? (
+                activeHunts.map((hunt, index) => (
+                  <motion.div
+                    key={hunt.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <HuntCard
+                      hunt={hunt}
+                      progress={progressMap[hunt.id]}
+                      onClick={() => handleHuntClick(hunt.id)}
+                    />
+                  </motion.div>
+                ))
+              ) : (
+                <EmptyState
+                  icon={Map}
+                  title="Нет активных охот"
+                  description="Выберите другие фильтры или посмотрите завершённые охоты"
+                />
+              )}
+            </TabsContent>
 
-          <TabsContent value="completed" className="mt-4 space-y-4">
-            {completedHunts.length > 0 ? (
-              completedHunts.map((hunt, index) => (
-                <motion.div
-                  key={hunt.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <HuntCard
-                    hunt={hunt}
-                    progress={allProgress[hunt.id]}
-                    onClick={() => handleHuntClick(hunt.id)}
-                  />
-                </motion.div>
-              ))
-            ) : (
-              <EmptyState
-                icon={Map}
-                title="Нет завершённых охот"
-                description="Начните первую охоту и завершите все задания"
-              />
-            )}
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="completed" className="mt-4 space-y-4">
+              {completedHunts.length > 0 ? (
+                completedHunts.map((hunt, index) => (
+                  <motion.div
+                    key={hunt.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <HuntCard
+                      hunt={hunt}
+                      progress={progressMap[hunt.id]}
+                      onClick={() => handleHuntClick(hunt.id)}
+                    />
+                  </motion.div>
+                ))
+              ) : (
+                <EmptyState
+                  icon={Map}
+                  title="Нет завершённых охот"
+                  description="Начните первую охоту и завершите все задания"
+                />
+              )}
+            </TabsContent>
+          </Tabs>
+        )}
       </main>
     </div>
   );

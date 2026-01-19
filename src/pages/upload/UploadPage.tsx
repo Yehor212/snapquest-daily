@@ -1,25 +1,32 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Camera, Sparkles } from 'lucide-react';
+import { ArrowLeft, Camera, Sparkles, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PhotoUploadButton, PhotoPreview, PhotoEditor } from '@/components/upload';
 import { XpBadge } from '@/components/common';
-import type { PhotoFilterType, PhotoEditOptions, Photo } from '@/types';
-import { savePhoto, generateId } from '@/lib/storage';
-import { applyFilter, applyAdjustments, createThumbnail } from '@/lib/imageUtils';
-import { mockTodayChallenge } from '@/data/mockData';
+import type { PhotoEditOptions } from '@/types';
+import { applyFilter, applyAdjustments, base64ToFile } from '@/lib/imageUtils';
+import { verifyImage, VerificationResult } from '@/lib/imageVerification';
 import { useToast } from '@/hooks/use-toast';
+import { useDailyChallenge } from '@/hooks/useChallenges';
+import { useUploadPhoto } from '@/hooks/usePhotos';
+import { useAddXp } from '@/hooks/useProfile';
 
-type Step = 'select' | 'preview' | 'edit' | 'success';
+type Step = 'select' | 'preview' | 'edit' | 'verifying' | 'verified' | 'success';
 
 export default function UploadPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
-  const challengeId = searchParams.get('challenge') || mockTodayChallenge.id;
+  const { data: challenge, isLoading: challengeLoading } = useDailyChallenge();
+  const uploadPhotoMutation = useUploadPhoto();
+  const addXpMutation = useAddXp();
+
+  const challengeId = searchParams.get('challenge') || challenge?.id;
   const eventId = searchParams.get('event');
+  const huntId = searchParams.get('hunt');
   const huntTaskId = searchParams.get('huntTask');
 
   const [step, setStep] = useState<Step>('select');
@@ -31,6 +38,7 @@ export default function UploadPage() {
     saturation: 100,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
 
   const handlePhotoSelected = (imageData: string) => {
     setSelectedImage(imageData);
@@ -50,16 +58,15 @@ export default function UploadPage() {
     setStep('preview');
   };
 
-  const handleSubmit = async () => {
+  const handleVerifyAndSubmit = async () => {
     if (!selectedImage) return;
 
-    setIsSubmitting(true);
+    setStep('verifying');
 
     try {
-      // Применяем фильтры и настройки
+      // Apply filters and adjustments to get final image
       let processedImage = selectedImage;
 
-      // Применяем яркость/контраст/насыщенность
       if (
         editOptions.brightness !== 100 ||
         editOptions.contrast !== 100 ||
@@ -73,41 +80,92 @@ export default function UploadPage() {
         );
       }
 
-      // Применяем фильтр
       if (editOptions.filter !== 'none') {
         processedImage = await applyFilter(processedImage, editOptions.filter);
       }
 
-      // Создаём миниатюру
-      const thumbnail = await createThumbnail(processedImage, 200);
+      // Convert to file for verification
+      const fileForVerification = await base64ToFile(processedImage, 'photo.jpg');
 
-      // Создаём объект фото
-      const photo: Photo = {
-        id: generateId(),
-        userId: 'user-1', // TODO: получить из контекста
-        imageData: processedImage,
-        thumbnailData: thumbnail,
-        challengeId: challengeId || undefined,
-        eventId: eventId || undefined,
-        huntTaskId: huntTaskId || undefined,
-        createdAt: new Date().toISOString(),
-        likes: 0,
-        comments: 0,
-        isTop: false,
-        filter: editOptions.filter,
+      // Run AI verification if challenge exists
+      let result: VerificationResult = {
+        isValid: true,
+        confidence: 1,
+        matchedKeyword: null,
+        allScores: [],
+        message: 'Фото принято',
       };
 
-      // Сохраняем в IndexedDB
-      await savePhoto(photo);
+      if (challenge) {
+        const hfApiKey = import.meta.env.VITE_HF_API_KEY;
+        result = await verifyImage(
+          fileForVerification,
+          challenge.title,
+          challenge.description || undefined,
+          hfApiKey
+        );
+      }
+
+      setVerificationResult(result);
+      setStep('verified');
+
+      // If valid, proceed to upload
+      if (result.isValid) {
+        await handleUpload(processedImage);
+      }
+    } catch (error) {
+      console.error('Verification error:', error);
+      // On error, allow upload anyway
+      setVerificationResult({
+        isValid: true,
+        confidence: 0,
+        matchedKeyword: null,
+        allScores: [],
+        message: 'Верификация недоступна. Фото принято.',
+      });
+      setStep('verified');
+
+      // Proceed with upload
+      let processedImage = selectedImage;
+      if (editOptions.filter !== 'none') {
+        processedImage = await applyFilter(processedImage, editOptions.filter);
+      }
+      await handleUpload(processedImage);
+    }
+  };
+
+  const handleUpload = async (processedImage: string) => {
+    setIsSubmitting(true);
+
+    try {
+      // Convert base64 to File for Supabase upload
+      const file = await base64ToFile(processedImage, 'photo.jpg');
+
+      // Upload to Supabase
+      await uploadPhotoMutation.mutateAsync({
+        file,
+        options: {
+          challengeId: challengeId || undefined,
+          eventId: eventId || undefined,
+          huntId: huntId || undefined,
+          huntTaskId: huntTaskId || undefined,
+          filter: editOptions.filter !== 'none' ? editOptions.filter : undefined,
+        },
+      });
+
+      // Add XP reward
+      if (challenge?.xp_reward) {
+        await addXpMutation.mutateAsync(challenge.xp_reward);
+      }
 
       setStep('success');
 
       toast({
         title: 'Фото загружено!',
-        description: `+${mockTodayChallenge.xpReward} XP`,
+        description: `+${challenge?.xp_reward || 50} XP`,
       });
 
-      // Через 2 секунды переходим в галерею
+      // Navigate to gallery after delay
       setTimeout(() => {
         navigate('/gallery');
       }, 2000);
@@ -118,9 +176,26 @@ export default function UploadPage() {
         description: 'Не удалось загрузить фото',
         variant: 'destructive',
       });
+      setStep('preview');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleRetry = () => {
+    setSelectedImage(null);
+    setVerificationResult(null);
+    setStep('select');
+  };
+
+  const handleForceUpload = async () => {
+    if (!selectedImage) return;
+
+    let processedImage = selectedImage;
+    if (editOptions.filter !== 'none') {
+      processedImage = await applyFilter(processedImage, editOptions.filter);
+    }
+    await handleUpload(processedImage);
   };
 
   const handleBack = () => {
@@ -129,10 +204,15 @@ export default function UploadPage() {
       setStep('select');
     } else if (step === 'edit') {
       setStep('preview');
+    } else if (step === 'verified' && !verificationResult?.isValid) {
+      setStep('preview');
     } else {
       navigate(-1);
     }
   };
+
+  const xpReward = challenge?.xp_reward || 50;
+  const dayNumber = challenge?.day_number || 1;
 
   return (
     <div className="min-h-screen bg-background">
@@ -146,9 +226,11 @@ export default function UploadPage() {
             {step === 'select' && 'Загрузить фото'}
             {step === 'preview' && 'Предпросмотр'}
             {step === 'edit' && 'Редактирование'}
+            {step === 'verifying' && 'Проверка фото...'}
+            {step === 'verified' && (verificationResult?.isValid ? 'Проверено!' : 'Не соответствует')}
             {step === 'success' && 'Готово!'}
           </h1>
-          <div className="w-10" /> {/* Spacer */}
+          <div className="w-10" />
         </div>
       </header>
 
@@ -160,20 +242,40 @@ export default function UploadPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center justify-center min-h-[60vh] gap-8"
           >
-            {/* Challenge info */}
-            <div className="text-center max-w-sm">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary border border-border mb-4">
-                <Camera className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">День #{mockTodayChallenge.dayNumber}</span>
+            {challengeLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Загрузка задания...
               </div>
-              <h2 className="font-display text-2xl font-bold mb-2">
-                {mockTodayChallenge.title}
-              </h2>
-              <p className="text-muted-foreground text-sm mb-4">
-                {mockTodayChallenge.description}
-              </p>
-              <XpBadge xp={mockTodayChallenge.xpReward} />
-            </div>
+            ) : challenge ? (
+              <div className="text-center max-w-sm">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary border border-border mb-4">
+                  <Camera className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium">День #{dayNumber}</span>
+                </div>
+                <h2 className="font-display text-2xl font-bold mb-2">
+                  {challenge.title}
+                </h2>
+                <p className="text-muted-foreground text-sm mb-4">
+                  {challenge.description}
+                </p>
+                <XpBadge xp={xpReward} />
+              </div>
+            ) : (
+              <div className="text-center max-w-sm">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary border border-border mb-4">
+                  <Camera className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium">Свободная тема</span>
+                </div>
+                <h2 className="font-display text-2xl font-bold mb-2">
+                  Загрузите фото
+                </h2>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Поделитесь своим творчеством
+                </p>
+                <XpBadge xp={50} />
+              </div>
+            )}
 
             <PhotoUploadButton onPhotoSelected={handlePhotoSelected} />
           </motion.div>
@@ -208,11 +310,18 @@ export default function UploadPage() {
 
               <Button
                 size="lg"
-                onClick={handleSubmit}
+                onClick={handleVerifyAndSubmit}
                 disabled={isSubmitting}
                 className="gap-2 bg-gradient-to-r from-primary to-primary/80"
               >
-                {isSubmitting ? 'Загрузка...' : 'Отправить'}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Загрузка...
+                  </>
+                ) : (
+                  'Проверить и отправить'
+                )}
               </Button>
             </div>
           </motion.div>
@@ -228,6 +337,108 @@ export default function UploadPage() {
               onCancel={handleEditCancel}
             />
           </div>
+        )}
+
+        {/* Verifying Step */}
+        {step === 'verifying' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center"
+          >
+            <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center">
+              <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            </div>
+            <div>
+              <h2 className="font-display text-xl font-bold mb-2">
+                AI проверяет фото
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                Определяем соответствие заданию...
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Verified Step */}
+        {step === 'verified' && verificationResult && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center"
+          >
+            {verificationResult.isValid ? (
+              <>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  className="w-20 h-20 rounded-full bg-success/20 flex items-center justify-center"
+                >
+                  <CheckCircle className="w-10 h-10 text-success" />
+                </motion.div>
+                <div>
+                  <h2 className="font-display text-xl font-bold mb-2 text-success">
+                    Фото соответствует!
+                  </h2>
+                  <p className="text-muted-foreground text-sm max-w-xs">
+                    {verificationResult.message}
+                  </p>
+                  {verificationResult.confidence > 0 && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Уверенность: {Math.round(verificationResult.confidence * 100)}%
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Загружаем фото...
+                </div>
+              </>
+            ) : (
+              <>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  className="w-20 h-20 rounded-full bg-destructive/20 flex items-center justify-center"
+                >
+                  <XCircle className="w-10 h-10 text-destructive" />
+                </motion.div>
+                <div>
+                  <h2 className="font-display text-xl font-bold mb-2 text-destructive">
+                    Не соответствует заданию
+                  </h2>
+                  <p className="text-muted-foreground text-sm max-w-xs">
+                    {verificationResult.message}
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-3 w-full max-w-xs">
+                  <Button onClick={handleRetry} variant="outline" className="gap-2">
+                    <Camera className="w-4 h-4" />
+                    Сделать другое фото
+                  </Button>
+                  <Button
+                    onClick={handleForceUpload}
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Загрузка...
+                      </>
+                    ) : (
+                      'Загрузить всё равно'
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+          </motion.div>
         )}
 
         {/* Success Step */}
@@ -255,7 +466,7 @@ export default function UploadPage() {
               </p>
             </div>
 
-            <XpBadge xp={mockTodayChallenge.xpReward} size="lg" animated />
+            <XpBadge xp={xpReward} size="lg" animated />
           </motion.div>
         )}
       </main>
