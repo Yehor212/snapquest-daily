@@ -45,6 +45,9 @@ function PageLoader() {
   );
 }
 
+// Use basename only in production (GitHub Pages)
+const basename = import.meta.env.PROD ? "/snapquest-daily" : "/";
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -52,7 +55,7 @@ const App = () => (
         <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter basename="/snapquest-daily">
+        <BrowserRouter basename={basename}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Main pages */}
