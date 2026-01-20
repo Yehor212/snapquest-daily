@@ -21,22 +21,26 @@ export function XpBadge({ xp, size = 'md', showIcon = true, animated = false }: 
     lg: 'w-5 h-5',
   };
 
-  const Badge = animated ? motion.div : 'div';
-  const animationProps = animated
-    ? {
-        initial: { scale: 0 },
-        animate: { scale: 1 },
-        transition: { type: 'spring', stiffness: 500, damping: 30 },
-      }
-    : {};
+  if (animated) {
+    return (
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ type: 'spring' as const, stiffness: 500, damping: 30 }}
+        className={`inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-gold/20 to-gold/10 border border-gold/30 font-semibold text-gold ${sizeClasses[size]}`}
+      >
+        {showIcon && <Sparkles className={iconSizes[size]} />}
+        <span>+{xp} XP</span>
+      </motion.div>
+    );
+  }
 
   return (
-    <Badge
+    <div
       className={`inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-gold/20 to-gold/10 border border-gold/30 font-semibold text-gold ${sizeClasses[size]}`}
-      {...animationProps}
     >
       {showIcon && <Sparkles className={iconSizes[size]} />}
       <span>+{xp} XP</span>
-    </Badge>
+    </div>
   );
 }

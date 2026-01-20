@@ -50,11 +50,12 @@ export function PhotoDetailModal({ photo, onClose }: PhotoDetailModalProps) {
         .select('id, username, display_name, avatar_url')
         .eq('id', photo.userId)
         .maybeSingle()
-        .then(({ data }) => {
+        .then(({ data, error }) => {
+          if (error) {
+            setIsLoadingUser(false);
+            return;
+          }
           setUserProfile(data);
-          setIsLoadingUser(false);
-        })
-        .catch(() => {
           setIsLoadingUser(false);
         });
     }

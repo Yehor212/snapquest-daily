@@ -1,14 +1,16 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
+
+const isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
 
 export interface Challenge {
   id: string;
   title: string;
   description: string | null;
   category: string | null;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: string;
   xp_reward: number;
   day_number: number | null;
-  is_daily: boolean;
+  participants_count: number;
   created_at: string;
   expires_at: string | null;
 }
@@ -20,28 +22,16 @@ export async function getDailyChallenge(): Promise<Challenge | null> {
   if (!isSupabaseConfigured) return null;
 
   try {
-    // Get challenge based on day of year
-    const dayOfYear = Math.floor(
-      (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
-    );
-    const dayNumber = (dayOfYear % 10) + 1; // Cycle through 10 challenges
-
     const { data, error } = await supabase
       .from('challenges')
       .select('*')
-      .eq('is_daily', true)
-      .eq('day_number', dayNumber)
-      .single();
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
-      // Fallback to any daily challenge
-      const { data: fallback } = await supabase
-        .from('challenges')
-        .select('*')
-        .eq('is_daily', true)
-        .limit(1)
-        .single();
-      return fallback;
+      console.error('Error fetching daily challenge:', error);
+      return null;
     }
 
     return data;

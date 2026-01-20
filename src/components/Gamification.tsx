@@ -65,11 +65,11 @@ function getBadgeColor(badge: Badge) {
 
 // Default badges (shown if DB is empty - these match the seed data structure)
 const defaultBadges: Badge[] = [
-  { id: "default-1", name: "Первый шаг", description: "Загрузите первое фото", icon: "camera", color: "primary", requirement_type: "photos", requirement_value: 1 },
-  { id: "default-2", name: "Новичок", description: "Загрузите 5 фото", icon: "image", color: "primary", requirement_type: "photos", requirement_value: 5 },
-  { id: "default-3", name: "Фотограф", description: "Загрузите 10 фото", icon: "award", color: "accent", requirement_type: "photos", requirement_value: 10 },
-  { id: "default-4", name: "На старте", description: "3 дня подряд", icon: "flame", color: "primary", requirement_type: "streak", requirement_value: 3 },
-  { id: "default-5", name: "Охотник", description: "Завершите охоту", icon: "map", color: "gold", requirement_type: "hunts", requirement_value: 1 },
+  { id: "default-1", name: "Первый шаг", description: "Загрузите первое фото", icon: "camera", color: "primary", category: "photos", requirement_type: "photos", requirement_value: 1 },
+  { id: "default-2", name: "Новичок", description: "Загрузите 5 фото", icon: "image", color: "primary", category: "photos", requirement_type: "photos", requirement_value: 5 },
+  { id: "default-3", name: "Фотограф", description: "Загрузите 10 фото", icon: "award", color: "accent", category: "photos", requirement_type: "photos", requirement_value: 10 },
+  { id: "default-4", name: "На старте", description: "3 дня подряд", icon: "flame", color: "primary", category: "streak", requirement_type: "streak", requirement_value: 3 },
+  { id: "default-5", name: "Охотник", description: "Завершите охоту", icon: "map", color: "gold", category: "hunts", requirement_type: "hunts", requirement_value: 1 },
 ];
 
 export const Gamification = () => {

@@ -26,7 +26,7 @@ export interface Photo {
   likes: number;
   comments: number;
   isTop: boolean;
-  filter?: PhotoFilterType;
+  filter?: PhotoFilterType | string;
   metadata?: PhotoMetadata;
 }
 
@@ -142,13 +142,13 @@ export interface ScavengerHunt {
   id: string;
   title: string;
   description: string;
-  coverImage: string;
-  theme: HuntTheme;
-  difficulty: Difficulty;
-  duration: HuntDuration;
+  coverImage?: string;
+  theme: HuntTheme | string;
+  difficulty: Difficulty | string;
+  duration: HuntDuration | string;
   tasks: HuntTask[];
   totalXp: number;
-  participantsCount: number;
+  participantsCount?: number;
   createdAt: string;
   startsAt?: string;
   endsAt?: string;

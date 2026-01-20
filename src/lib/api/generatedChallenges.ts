@@ -1,8 +1,17 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { Challenge } from './challenges';
+import { supabase } from '@/integrations/supabase/client';
 
-export interface GeneratedChallengeDB extends Challenge {
-  creator_id: string | null;
+const isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
+
+export interface GeneratedChallenge {
+  id: string;
+  user_id: string | null;
+  title: string;
+  description: string;
+  category: string;
+  difficulty: string;
+  xp_reward: number;
+  is_saved: boolean;
+  generated_at: string;
 }
 
 export interface SavedChallengeWithDetails {
@@ -10,7 +19,7 @@ export interface SavedChallengeWithDetails {
   user_id: string;
   challenge_id: string;
   saved_at: string;
-  challenge: Challenge;
+  challenge: GeneratedChallenge;
 }
 
 /**
@@ -24,23 +33,22 @@ export async function createGeneratedChallenge(
     difficulty?: 'easy' | 'medium' | 'hard';
     xp_reward?: number;
   }
-): Promise<Challenge | null> {
+): Promise<GeneratedChallenge | null> {
   if (!isSupabaseConfigured) return null;
 
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
 
     const { data, error } = await supabase
-      .from('challenges')
+      .from('generated_challenges')
       .insert({
         title: challenge.title,
-        description: challenge.description || null,
-        category: challenge.category || null,
+        description: challenge.description || '',
+        category: challenge.category || 'nature',
         difficulty: challenge.difficulty || 'medium',
         xp_reward: challenge.xp_reward || 50,
-        is_daily: false,
-        creator_id: user.id,
+        user_id: user?.id || null,
+        is_saved: false,
       })
       .select()
       .single();
@@ -75,11 +83,16 @@ export async function saveUserChallenge(challengeId: string): Promise<boolean> {
       });
 
     if (error) {
-      // Might already be saved
-      if (error.code === '23505') return true; // unique violation = already saved
+      if (error.code === '23505') return true; // already saved
       console.error('Error saving challenge:', error);
       return false;
     }
+
+    // Mark as saved
+    await supabase
+      .from('generated_challenges')
+      .update({ is_saved: true })
+      .eq('id', challengeId);
 
     return true;
   } catch (error) {
@@ -119,7 +132,7 @@ export async function unsaveUserChallenge(challengeId: string): Promise<boolean>
 /**
  * Get user's saved challenges
  */
-export async function getSavedChallenges(): Promise<Challenge[]> {
+export async function getSavedChallenges(): Promise<GeneratedChallenge[]> {
   if (!isSupabaseConfigured) return [];
 
   try {
@@ -131,7 +144,7 @@ export async function getSavedChallenges(): Promise<Challenge[]> {
       .select(`
         challenge_id,
         saved_at,
-        challenges (*)
+        generated_challenges (*)
       `)
       .eq('user_id', user.id)
       .order('saved_at', { ascending: false });
@@ -143,8 +156,8 @@ export async function getSavedChallenges(): Promise<Challenge[]> {
 
     // Extract challenge data from joined result
     return (data || [])
-      .map((item: any) => item.challenges)
-      .filter(Boolean) as Challenge[];
+      .map((item: any) => item.generated_challenges)
+      .filter(Boolean) as GeneratedChallenge[];
   } catch (error) {
     console.warn('Network error fetching saved challenges:', error);
     return [];
@@ -166,7 +179,7 @@ export async function isChallengeSaved(challengeId: string): Promise<boolean> {
       .select('id')
       .eq('user_id', user.id)
       .eq('challenge_id', challengeId)
-      .single();
+      .maybeSingle();
 
     return !!data;
   } catch {
@@ -212,7 +225,7 @@ export async function createAndSaveChallenge(
     difficulty?: 'easy' | 'medium' | 'hard';
     xp_reward?: number;
   }
-): Promise<Challenge | null> {
+): Promise<GeneratedChallenge | null> {
   const created = await createGeneratedChallenge(challenge);
   if (created) {
     await saveUserChallenge(created.id);
@@ -231,10 +244,10 @@ export async function deleteGeneratedChallenge(challengeId: string): Promise<boo
     if (!user) return false;
 
     const { error } = await supabase
-      .from('challenges')
+      .from('generated_challenges')
       .delete()
       .eq('id', challengeId)
-      .eq('creator_id', user.id);
+      .eq('user_id', user.id);
 
     if (error) {
       console.error('Error deleting challenge:', error);

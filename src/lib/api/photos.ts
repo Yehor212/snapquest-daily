@@ -1,4 +1,6 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
+
+const isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
 
 export interface Photo {
   id: string;
@@ -7,12 +9,10 @@ export interface Photo {
   thumbnail_url: string | null;
   challenge_id: string | null;
   event_id: string | null;
-  hunt_id: string | null;
   hunt_task_id: string | null;
-  event_challenge_id: string | null;
   filter_applied: string | null;
   likes_count: number;
-  xp_earned: number;
+  is_verified: boolean;
   created_at: string;
 }
 
@@ -34,7 +34,6 @@ export async function uploadPhoto(
     huntId?: string;
     huntTaskId?: string;
     filter?: string;
-    xpEarned?: number;
   }
 ): Promise<Photo | null> {
   if (!isSupabaseConfigured) {
@@ -68,12 +67,6 @@ export async function uploadPhoto(
 
   if (uploadError) {
     console.error('[uploadPhoto] Storage error:', uploadError.message);
-    if (uploadError.message.includes('Bucket not found')) {
-      console.error('[uploadPhoto] CRITICAL: Storage bucket "photos" does not exist! Create it in Supabase Dashboard > Storage.');
-    }
-    if (uploadError.message.includes('row-level security')) {
-      console.error('[uploadPhoto] RLS policy blocking upload. Check storage policies.');
-    }
     return null;
   }
 
@@ -94,11 +87,8 @@ export async function uploadPhoto(
       image_url: publicUrl,
       challenge_id: options?.challengeId || null,
       event_id: options?.eventId || null,
-      event_challenge_id: options?.eventChallengeId || null,
-      hunt_id: options?.huntId || null,
       hunt_task_id: options?.huntTaskId || null,
       filter_applied: options?.filter || null,
-      xp_earned: options?.xpEarned || 0,
     })
     .select()
     .single();
@@ -206,6 +196,20 @@ export async function likePhoto(photoId: string): Promise<boolean> {
     return false;
   }
 
+  // Update likes count
+  const { data: photo } = await supabase
+    .from('photos')
+    .select('likes_count')
+    .eq('id', photoId)
+    .single();
+
+  if (photo) {
+    await supabase
+      .from('photos')
+      .update({ likes_count: photo.likes_count + 1 })
+      .eq('id', photoId);
+  }
+
   return true;
 }
 
@@ -227,6 +231,20 @@ export async function unlikePhoto(photoId: string): Promise<boolean> {
   if (error) {
     console.error('Error unliking photo:', error);
     return false;
+  }
+
+  // Update likes count
+  const { data: photo } = await supabase
+    .from('photos')
+    .select('likes_count')
+    .eq('id', photoId)
+    .single();
+
+  if (photo && photo.likes_count > 0) {
+    await supabase
+      .from('photos')
+      .update({ likes_count: photo.likes_count - 1 })
+      .eq('id', photoId);
   }
 
   return true;
@@ -288,8 +306,8 @@ export async function getGlobalStats(): Promise<{
 
   const [photosResult, huntsResult, eventsResult] = await Promise.all([
     supabase.from('photos').select('*', { count: 'exact', head: true }),
-    supabase.from('hunts').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    supabase.from('events').select('*', { count: 'exact', head: true }),
+    supabase.from('scavenger_hunts').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('private_events').select('*', { count: 'exact', head: true }),
   ]);
 
   return {
