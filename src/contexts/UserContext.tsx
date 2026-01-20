@@ -42,9 +42,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     xp: profile.xp,
     level: profile.level,
     streak: profile.streak,
-    longestStreak: profile.longest_streak,
-    photosCount: 0, // Will be fetched separately if needed
-    badgesCount: 0, // Will be fetched separately if needed
+    longestStreak: profile.streak, // Use streak as longest for now
+    photosCount: 0,
+    badgesCount: 0,
   } : null;
 
   const addXp = async (amount: number) => {

@@ -1,4 +1,7 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
+
+// Check if Supabase is configured
+const isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
 
 // Profile interface matches DB schema (snake_case: xp, streak)
 export interface Profile {
@@ -9,7 +12,7 @@ export interface Profile {
   xp: number;
   level: number;
   streak: number;
-  longest_streak: number;
+  last_activity_date?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -59,7 +62,6 @@ export async function ensureProfile(userId: string, email?: string): Promise<Pro
       xp: 0,
       level: 1,
       streak: 0,
-      longest_streak: 0,
     })
     .select()
     .single();
@@ -125,7 +127,7 @@ export async function updateProfile(updates: Partial<Profile>): Promise<Profile 
 }
 
 /**
- * Add XP to user using atomic RPC
+ * Add XP to user
  */
 export async function addXp(amount: number): Promise<Profile | null> {
   if (!isSupabaseConfigured) return null;
@@ -133,23 +135,31 @@ export async function addXp(amount: number): Promise<Profile | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Use atomic RPC to add XP
-  const { error } = await supabase.rpc('add_user_xp', {
-    user_uuid: user.id,
-    xp_amount: amount,
-  });
+  // Get current profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('xp')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile) return null;
+
+  // Update XP
+  const { error } = await supabase
+    .from('profiles')
+    .update({ xp: profile.xp + amount })
+    .eq('id', user.id);
 
   if (error) {
-    console.error('Error adding XP via RPC:', error);
+    console.error('Error adding XP:', error);
     return null;
   }
 
-  // Return updated profile
   return getCurrentProfile();
 }
 
 /**
- * Update user streak using atomic RPC
+ * Update user streak
  */
 export async function updateStreak(): Promise<Profile | null> {
   if (!isSupabaseConfigured) return null;
@@ -157,17 +167,35 @@ export async function updateStreak(): Promise<Profile | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Use atomic RPC to update streak
-  const { error } = await supabase.rpc('update_user_streak', {
-    user_uuid: user.id,
-  });
+  // Get current profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('streak, last_activity_date')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile) return null;
+
+  const today = new Date().toISOString().split('T')[0];
+  const lastActivity = profile.last_activity_date;
+  
+  let newStreak = profile.streak;
+  if (lastActivity !== today) {
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    newStreak = lastActivity === yesterday ? profile.streak + 1 : 1;
+  }
+
+  // Update streak
+  const { error } = await supabase
+    .from('profiles')
+    .update({ streak: newStreak, last_activity_date: today })
+    .eq('id', user.id);
 
   if (error) {
-    console.error('Error updating streak via RPC:', error);
+    console.error('Error updating streak:', error);
     return null;
   }
 
-  // Return updated profile
   return getCurrentProfile();
 }
 
@@ -237,20 +265,20 @@ export async function getWeeklyActivity(): Promise<WeeklyActivity[]> {
   const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
   const weekActivity: WeeklyActivity[] = [];
 
-  // Fetch photos for this week with real xp_earned
+  // Fetch photos for this week
   const { data: photos } = await supabase
     .from('photos')
-    .select('created_at, xp_earned')
+    .select('created_at')
     .eq('user_id', user.id)
     .gte('created_at', monday.toISOString())
     .order('created_at', { ascending: true });
 
-  // Create activity map by date using real XP values
+  // Create activity map by date
   const activityMap = new Map<string, number>();
   (photos || []).forEach(photo => {
     const date = new Date(photo.created_at).toISOString().split('T')[0];
-    // Use real xp_earned, fallback to 50 for legacy photos without xp_earned
-    const xp = photo.xp_earned || 50;
+    // Default XP per photo
+    const xp = 50;
     activityMap.set(date, (activityMap.get(date) || 0) + xp);
   });
 
@@ -364,7 +392,6 @@ export async function getUserPhotosWithChallenges(limit = 10): Promise<PhotoWith
       thumbnail_url,
       created_at,
       likes_count,
-      xp_earned,
       challenge_id,
       challenges(title)
     `)
@@ -385,7 +412,7 @@ export async function getUserPhotosWithChallenges(limit = 10): Promise<PhotoWith
     likes_count: photo.likes_count,
     challenge_id: photo.challenge_id,
     challenge_title: (photo.challenges as any)?.title || null,
-    xp_earned: photo.xp_earned || 50, // Fallback for legacy photos
+    xp_earned: 50,
   }));
 }
 
@@ -472,7 +499,7 @@ export async function getUserAchievements(): Promise<UserAchievements | null> {
   // Get profile for streak
   const { data: profile } = await supabase
     .from('profiles')
-    .select('longest_streak')
+    .select('streak')
     .eq('id', user.id)
     .single();
 
@@ -505,7 +532,7 @@ export async function getUserAchievements(): Promise<UserAchievements | null> {
   });
 
   return {
-    longestStreak: profile?.longest_streak || 0,
+    longestStreak: profile?.streak || 0,
     totalPhotos,
     totalLikes,
     topPhotosCount,
@@ -546,7 +573,7 @@ export async function getUserBadgeMetrics(): Promise<UserBadgeMetrics | null> {
         .eq('user_id', user.id)
         .not('completed_at', 'is', null),
       supabase
-        .from('events')
+        .from('private_events')
         .select('id', { count: 'exact', head: true })
         .eq('creator_id', user.id),
       supabase

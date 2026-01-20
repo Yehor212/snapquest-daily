@@ -18,15 +18,14 @@ interface GeneratorControlsProps {
 
 const categories: (ChallengeCategory | 'all')[] = [
   'all',
-  'creative',
   'nature',
   'urban',
-  'portrait',
-  'abstract',
+  'people',
   'food',
-  'colors',
-  'emotions',
-  'architecture',
+  'abstract',
+  'mood',
+  'color',
+  'light',
 ];
 
 const difficulties: (Difficulty | 'all')[] = ['all', 'easy', 'medium', 'hard'];

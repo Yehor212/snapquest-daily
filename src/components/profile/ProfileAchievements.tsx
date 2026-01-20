@@ -33,7 +33,7 @@ export const ProfileAchievements = () => {
     {
       icon: Flame,
       title: "Рекордный стрик",
-      value: `${profile?.longest_streak || 0} дн.`,
+      value: `${profile?.streak || 0} дн.`,
       description: "Твой лучший результат",
       color: "text-primary",
       bgColor: "bg-primary/20",

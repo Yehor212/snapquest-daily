@@ -1,15 +1,20 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
+
+const isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
 
 export interface Hunt {
   id: string;
   title: string;
   description: string | null;
   cover_image: string | null;
-  theme: 'city' | 'nature' | 'home' | 'travel' | 'seasonal';
-  difficulty: 'easy' | 'medium' | 'hard';
-  duration: 'day' | 'week' | 'month';
+  theme: string;
+  difficulty: string;
+  duration: string;
   total_xp: number;
+  participants_count: number;
   is_active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
   created_at: string;
   task_count?: number;
 }
@@ -22,6 +27,7 @@ export interface HuntTask {
   order_num: number;
   xp_reward: number;
   hint: string | null;
+  bonus_xp: number | null;
 }
 
 export interface HuntProgress {
@@ -41,7 +47,7 @@ export async function getActiveHunts(): Promise<Hunt[]> {
   if (!isSupabaseConfigured) return [];
 
   const { data, error } = await supabase
-    .from('hunts')
+    .from('scavenger_hunts')
     .select('*')
     .eq('is_active', true)
     .order('created_at', { ascending: false });
@@ -80,7 +86,7 @@ export async function getHuntWithTasks(huntId: string): Promise<{ hunt: Hunt; ta
   if (!isSupabaseConfigured) return null;
 
   const [huntResult, tasksResult] = await Promise.all([
-    supabase.from('hunts').select('*').eq('id', huntId).single(),
+    supabase.from('scavenger_hunts').select('*').eq('id', huntId).single(),
     supabase.from('hunt_tasks').select('*').eq('hunt_id', huntId).order('order_num'),
   ]);
 
@@ -109,10 +115,11 @@ export async function getHuntProgress(huntId: string): Promise<HuntProgress | nu
     .select('*')
     .eq('hunt_id', huntId)
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
-  if (error && error.code !== 'PGRST116') { // PGRST116 = not found
+  if (error) {
     console.error('Error fetching hunt progress:', error);
+    return null;
   }
 
   return data;
@@ -147,8 +154,7 @@ export async function startHunt(huntId: string): Promise<HuntProgress | null> {
 }
 
 /**
- * Complete a hunt task using the RPC function
- * This atomically updates progress, links photo, and adds XP
+ * Complete a hunt task
  */
 export async function completeHuntTask(
   huntId: string,
@@ -161,24 +167,58 @@ export async function completeHuntTask(
   if (!user) return null;
 
   try {
-    // Call the RPC function for atomic operation
-    const { error } = await supabase.rpc('complete_hunt_task', {
-      p_hunt_id: huntId,
-      p_task_id: taskId,
-      p_photo_id: photoId,
-    });
+    // Get current progress
+    const { data: progress } = await supabase
+      .from('hunt_progress')
+      .select('*')
+      .eq('hunt_id', huntId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!progress) {
+      console.error('Hunt not started');
+      return null;
+    }
+
+    // Check if already completed
+    if (progress.completed_tasks.includes(taskId)) {
+      return progress;
+    }
+
+    // Get task XP reward
+    const { data: task } = await supabase
+      .from('hunt_tasks')
+      .select('xp_reward')
+      .eq('id', taskId)
+      .single();
+
+    const xpReward = task?.xp_reward || 20;
+    const newCompletedTasks = [...progress.completed_tasks, taskId];
+    const newXp = progress.total_xp_earned + xpReward;
+
+    // Update progress
+    const { data: updated, error } = await supabase
+      .from('hunt_progress')
+      .update({
+        completed_tasks: newCompletedTasks,
+        total_xp_earned: newXp,
+      })
+      .eq('id', progress.id)
+      .select()
+      .single();
 
     if (error) {
-      // Check if task was already completed
-      if (error.message?.includes('already completed')) {
-        return getHuntProgress(huntId);
-      }
       console.error('Error completing hunt task:', error);
       return null;
     }
 
-    // Return updated progress
-    return getHuntProgress(huntId);
+    // Link photo to hunt task
+    await supabase
+      .from('photos')
+      .update({ hunt_task_id: taskId })
+      .eq('id', photoId);
+
+    return updated;
   } catch (error) {
     console.error('Error in completeHuntTask:', error);
     return null;
